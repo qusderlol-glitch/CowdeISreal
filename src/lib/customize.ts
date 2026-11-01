@@ -35,13 +35,13 @@ const T: Group = 'Тема и цвета', F: Group = 'Шрифты и текс�
 
 export const SETTINGS: SettingDef[] = [
   // ── Тема и цвета
-  sel('theme', 'Тема', T, [['meadow', 'Луг'], ['moss', 'Мох'], ['clay', 'Глина'], ['night', 'Ночь (OLED)'], ['ocean', 'Океан'], ['sakura', 'Сакура'],
-    ['sunset', 'Закат'], ['lavender', 'Лаванда'], ['mint', 'Мята'], ['coffee', 'Кофе'], ['slate', 'Сланец'], ['paper', 'Бумага (контраст)']], 'meadow', 'attr', 'theme'),
-  col('accent', 'Акцентный цвет', T, '#2f8a5f', 'accent'),
-  col('dangerColor', 'Цвет предупреждений', T, '#c2453d', 'danger'),
-  col('linkColor', 'Цвет ссылок', T, '#2f6f8a', 'link'),
-  col('mentionColor', 'Подсветка упоминаний', T, '#fff3d6', 'mention'),
-  col('selectionColor', 'Цвет выделения текста', T, '#bfe6cf', 'selection'),
+  sel('theme', 'Тема', T, [['graphite', 'Графит'], ['meadow', 'Светлая'], ['moss', 'Тёмно-зелёная'], ['clay', 'Тёплая тёмная'], ['night', 'OLED'], ['ocean', 'Океан'],
+    ['sakura', 'Сакура'], ['sunset', 'Песок'], ['lavender', 'Лаванда'], ['mint', 'Мята'], ['coffee', 'Кофе'], ['slate', 'Сланец'], ['paper', 'Контрастная']], 'graphite', 'attr', 'theme'),
+  col('accent', 'Акцентный цвет', T, '#22c55e', 'accent'),
+  col('dangerColor', 'Цвет предупреждений', T, '#ef4444', 'danger'),
+  col('linkColor', 'Цвет ссылок', T, '#38bdf8', 'link'),
+  col('mentionColor', 'Подсветка упоминаний', T, '#2a2410', 'mention'),
+  col('selectionColor', 'Цвет выделения текста', T, '#1f6f43', 'selection'),
   sel('paperTone', 'Оттенок фона', T, [['theme', 'Как в теме'], ['warm', 'Тёплый'], ['cool', 'Холодный'], ['pink', 'Розоватый'], ['mint', 'Мятный'], ['gray', 'Серый']], 'theme', 'attr', 'paper-tone'),
   sel('bubbleMine', 'Цвет моих сообщений', T, [['accent', 'Акцент'], ['blue', 'Синий'], ['violet', 'Фиолетовый'], ['pink', 'Розовый'], ['orange', 'Оранжевый'], ['gray', 'Серый'], ['outline', 'Только контур']], 'accent', 'attr', 'bubble-mine'),
   sel('bubbleTheirs', 'Цвет чужих сообщений', T, [['surface', 'Светлая карточка'], ['tinted', 'С оттенком акцента'], ['gray', 'Серый'], ['transparent', 'Без фона']], 'surface', 'attr', 'bubble-theirs'),
@@ -52,7 +52,7 @@ export const SETTINGS: SettingDef[] = [
 
   // ── Шрифты и текст
   sel('fontFamily', 'Шрифт интерфейса', F, [['system', 'Системный'], ['humanist', 'Гуманистический'], ['serif', 'С засечками'], ['rounded', 'Округлый'], ['mono', 'Моноширинный'], ['readable', 'Удобочитаемый']], 'system', 'attr', 'font'),
-  sel('headingFont', 'Шрифт заголовков', F, [['serif', 'С засечками'], ['sans', 'Без засечек'], ['mono', 'Моноширинный'], ['rounded', 'Округлый']], 'serif', 'attr', 'heading-font'),
+  sel('headingFont', 'Шрифт заголовков', F, [['sans', 'Без засечек'], ['serif', 'С засечками'], ['mono', 'Моноширинный'], ['rounded', 'Округлый']], 'sans', 'attr', 'heading-font'),
   rng('fontSize', 'Размер шрифта', F, 12, 20, 1, 15, 'px', 'var', 'font-size'),
   rng('lineHeight', 'Межстрочный интервал', F, 1.2, 1.9, 0.05, 1.5, '', 'var', 'line-height'),
   rng('letterSpacing', 'Межбуквенный интервал', F, 0, 0.06, 0.01, 0, 'em', 'var', 'letter-spacing'),
@@ -68,24 +68,24 @@ export const SETTINGS: SettingDef[] = [
 
   // ── Форма и плотность
   sel('density', 'Плотность', S, [['cozy', 'Обычная'], ['compact', 'Компактная'], ['spacious', 'Просторная']], 'cozy', 'attr', 'density'),
-  rng('radiusScale', 'Скругление углов', S, 0.2, 1.6, 0.1, 1, '', 'var', 'radius-scale'),
+  rng('radiusScale', 'Скругление углов', S, 0.2, 1.6, 0.1, 0.6, '', 'var', 'radius-scale'),
   rng('borderWidth', 'Толщина рамок', S, 0, 3, 0.5, 1.5, 'px', 'var', 'bw'),
-  sel('shadowStrength', 'Тени', S, [['none', 'Без теней'], ['soft', 'Мягкие'], ['normal', 'Обычные'], ['strong', 'Глубокие']], 'normal', 'attr', 'shadow'),
-  sel('buttonShape', 'Форма кнопок', S, [['pill', 'Таблетка'], ['rounded', 'Скруглённые'], ['square', 'Прямые']], 'pill', 'attr', 'buttons'),
+  sel('shadowStrength', 'Тени', S, [['soft', 'Мягкие'], ['none', 'Без теней'], ['normal', 'Обычные'], ['strong', 'Глубокие']], 'soft', 'attr', 'shadow'),
+  sel('buttonShape', 'Форма кнопок', S, [['rounded', 'Скруглённые'], ['pill', 'Таблетка'], ['square', 'Прямые']], 'rounded', 'attr', 'buttons'),
   sel('cardStyle', 'Вид карточек', S, [['raised', 'Приподнятые'], ['flat', 'Плоские'], ['outlined', 'Только контур']], 'raised', 'attr', 'cards'),
   tg('compactTopbar', 'Компактная верхняя панель', S, false, 'attr', 'compact-topbar'),
   rng('messageGap', 'Расстояние между сообщениями', S, 0, 24, 1, 12, 'px', 'var', 'msg-gap'),
 
   // ── Фон и узоры
-  sel('chatPattern', 'Узор в чате', B, [['none', 'Без узора'], ['dots', 'Точки'], ['grid', 'Сетка'], ['leaves', 'Листья'], ['waves', 'Волны'], ['diagonal', 'Диагонали'], ['confetti', 'Конфетти']], 'none', 'attr', 'pattern'),
+  sel('chatPattern', 'Узор в чате', B, [['none', 'Без узора'], ['dots', 'Точки'], ['grid', 'Сетка'], ['cross', 'Сетка плюсов'], ['waves', 'Волны'], ['diagonal', 'Диагонали'], ['confetti', 'Конфетти']], 'none', 'attr', 'pattern'),
   rng('patternOpacity', 'Заметность узора', B, 0.03, 0.3, 0.01, 0.1, '', 'var', 'pattern-opacity'),
-  sel('appBackground', 'Фон приложения', B, [['plain', 'Однотонный'], ['gradient', 'Градиент'], ['lines', 'Линейки'], ['glow', 'Свечение акцента']], 'plain', 'attr', 'app-bg'),
+  sel('appBackground', 'Фон приложения', B, [['plain', 'Однотонный'], ['tinted', 'С оттенком акцента'], ['lines', 'Линейки'], ['dots', 'Точки']], 'plain', 'attr', 'app-bg'),
   sel('chatBackground', 'Фон ленты', B, [['paper', 'Как бумага'], ['surface', 'Светлее'], ['tinted', 'С оттенком'], ['contrast', 'Контрастный']], 'paper', 'attr', 'chat-bg'),
   sel('roomsBackground', 'Фон колонки комнат', B, [['none', 'Прозрачный'], ['surface', 'Карточка'], ['tinted', 'С оттенком']], 'none', 'attr', 'rooms-bg'),
 
   // ── Пузыри сообщений
-  sel('bubbleStyle', 'Стиль пузырей', U, [['rounded', 'Округлые'], ['leaf', 'Листок'], ['sharp', 'Строгие'], ['minimal', 'Минимальные'], ['outline', 'Контурные'], ['glass', 'Стекло'], ['paper', 'Бумажные'], ['cloud', 'Облачко']], 'rounded', 'attr', 'bubble'),
-  rng('bubbleRadius', 'Скругление пузырей', U, 2, 28, 1, 18, 'px', 'var', 'bubble-radius'),
+  sel('bubbleStyle', 'Стиль пузырей', U, [['rounded', 'Скруглённые'], ['leaf', 'Асимметричные'], ['sharp', 'Строгие'], ['minimal', 'Минимальные'], ['outline', 'Контурные'], ['glass', 'Полупрозрачные'], ['paper', 'Карточки со сдвигом'], ['cloud', 'Овальные']], 'rounded', 'attr', 'bubble'),
+  rng('bubbleRadius', 'Скругление пузырей', U, 2, 28, 1, 12, 'px', 'var', 'bubble-radius'),
   tg('bubbleTail', 'Хвостик у пузыря', U, true, 'attr', 'tail'),
   tg('bubbleShadow', 'Тень у пузырей', U, true, 'attr', 'bubble-shadow'),
   tg('bubbleBorder', 'Рамка у пузырей', U, true, 'attr', 'bubble-border'),
@@ -137,7 +137,7 @@ export const SETTINGS: SettingDef[] = [
   tg('commandHints', 'Подсказки /команд', C, true, 'logic'),
   tg('confirmDelete', 'Спрашивать перед удалением', C, true, 'logic'),
   tg('keepDrafts', 'Хранить черновики по каналам', C, true, 'logic'),
-  sel('composerStyle', 'Вид поля ввода', C, [['pill', 'Капсула'], ['box', 'Блок'], ['underline', 'Подчёркивание']], 'pill', 'attr', 'composer'),
+  sel('composerStyle', 'Вид поля ввода', C, [['box', 'Блок'], ['pill', 'Капсула'], ['underline', 'Подчёркивание']], 'box', 'attr', 'composer'),
   tg('autoFocusComposer', 'Курсор сразу в поле ввода', C, true, 'logic'),
   tg('sendTyping', 'Сообщать, что я печатаю', C, true, 'logic'),
 
@@ -158,7 +158,7 @@ export const SETTINGS: SettingDef[] = [
   sel('roomIcons', 'Значки комнат', R, [['square', 'Квадратные'], ['circle', 'Круглые'], ['none', 'Без значков']], 'square', 'attr', 'room-icons'),
   tg('unreadDots', 'Точки непрочитанного', R, true, 'attr', 'unread-dots'),
   tg('voicePeople', 'Участники под голосовыми', R, true, 'attr', 'voice-people'),
-  sel('tabStyle', 'Вид вкладок сообществ', R, [['pill', 'Таблетки'], ['underline', 'Подчёркивание'], ['square', 'Плитки'], ['compact', 'Компактные']], 'pill', 'attr', 'tabs'),
+  sel('tabStyle', 'Вид вкладок сообществ', R, [['underline', 'Подчёркивание'], ['pill', 'Таблетки'], ['square', 'Плитки'], ['compact', 'Компактные']], 'underline', 'attr', 'tabs'),
   tg('tabIcons', 'Значки на вкладках', R, true, 'attr', 'tab-icons'),
   tg('collapseCategories', 'Категории свёрнуты по умолчанию', R, false, 'logic'),
   tg('favoritesSection', 'Раздел «Избранное»', R, true, 'logic'),

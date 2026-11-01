@@ -15,7 +15,7 @@ export default function TopBar({ communities, active, mode, onAdd, onUser }: { c
   const social = incoming + unreadDms;
   return (
     <header className="topbar">
-      <Link to="/app" className="brand" aria-label="Главная"><Icon name="sprout" size={24} /><span>{BRAND.short}</span></Link>
+      <Link to="/app" className="brand" aria-label="Главная"><Icon name="logo" size={24} /><span>{BRAND.short}</span></Link>
       <nav className="community-tabs" aria-label="Сообщества">
         <Link to="/app/friends" className={`ctab friends-tab ${mode === 'friends' ? 'active' : ''}`} aria-current={mode === 'friends' ? 'page' : undefined}
           aria-label={`Друзья${social ? `, новых: ${social}` : ''}`}><Icon name="users" size={16} /><span>Друзья</span>{social > 0 && <b className="badge">{social > 99 ? '99+' : social}</b>}</Link>

@@ -81,7 +81,7 @@ function Home({ count, onCreate }: { count: number; onCreate: () => void }) {
   return (
     <main className="main home">
       <div className="home-card">
-        <Icon name="sprout" size={48} />
+        <Icon name="logo" size={48} />
         <h1>{count ? 'Выберите сообщество сверху' : `Добро пожаловать в ${BRAND.name}`}</h1>
         <p className="muted">{count ? 'Или посадите новое — это бесплатно.' : 'Создайте своё сообщество или вступите по ссылке-приглашению.'}</p>
         <button className="btn primary" onClick={onCreate}><Icon name="plus" /> Создать или вступить</button>

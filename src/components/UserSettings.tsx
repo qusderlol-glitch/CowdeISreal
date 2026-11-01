@@ -130,8 +130,8 @@ function SocialPrivacy() {
 }
 
 // ── Оформление профиля, которое видят другие (баннер, рамка, шрифт имени, эмодзи, местоимения)
-const BANNERS: [ProfileStyle['banner_style'], string][] = [['gradient', 'Градиент'], ['solid', 'Однотонный'], ['dots', 'Точки'], ['waves', 'Волны'], ['stripes', 'Полосы'], ['leaves', 'Листья'], ['grid', 'Сетка'], ['sunset', 'Закат']];
-const FRAMES: [ProfileStyle['avatar_frame'], string][] = [['none', 'Без рамки'], ['ring', 'Кольцо'], ['double', 'Двойное'], ['dashed', 'Пунктир'], ['glow', 'Свечение'], ['leaf', 'Листок'], ['square', 'Квадрат']];
+const BANNERS: [ProfileStyle['banner_style'], string][] = [['gradient', 'Двухцветный'], ['solid', 'Однотонный'], ['dots', 'Точки'], ['waves', 'Кольца'], ['stripes', 'Полосы'], ['leaves', 'Ромбы'], ['grid', 'Сетка'], ['sunset', 'Три полосы']];
+const FRAMES: [ProfileStyle['avatar_frame'], string][] = [['none', 'Без рамки'], ['ring', 'Кольцо'], ['double', 'Двойное'], ['dashed', 'Пунктир'], ['glow', 'Толстое кольцо'], ['leaf', 'Капля'], ['square', 'Квадрат']];
 const NAME_FONTS: [ProfileStyle['name_font'], string][] = [['default', 'Обычный'], ['serif', 'С засечками'], ['mono', 'Моноширинный'], ['rounded', 'Округлый'], ['bold', 'Жирный'], ['italic', 'Курсив']];
 
 function StyleTab() {
@@ -155,7 +155,7 @@ function StyleTab() {
       </div>
       <div className="row wrap">
         <Field label="Шрифт имени"><select value={f.name_font} onChange={(e) => setF({ ...f, name_font: e.target.value as ProfileStyle['name_font'] })}>{NAME_FONTS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></Field>
-        <Field label="Эмодзи у имени"><input value={f.profile_emoji} maxLength={8} onChange={(e) => setF({ ...f, profile_emoji: e.target.value })} placeholder="🌱" /></Field>
+        <Field label="Эмодзи у имени"><input value={f.profile_emoji} maxLength={8} onChange={(e) => setF({ ...f, profile_emoji: e.target.value })} placeholder="⚡" /></Field>
         <Field label="Местоимения"><input value={f.pronouns} maxLength={20} onChange={(e) => setF({ ...f, pronouns: e.target.value })} placeholder="он/его, она/её…" /></Field>
       </div>
       <button className="btn primary" onClick={save}>Сохранить оформление</button>

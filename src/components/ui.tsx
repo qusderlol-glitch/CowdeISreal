@@ -34,7 +34,7 @@ const P: Record<string, ReactNode> = {
   logout: <path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10" />,
   bot: <><rect x="4" y="8" width="16" height="11" rx="3" /><path d="M12 4v4M9 13h.01M15 13h.01M2 13v2M22 13v2" /></>,
   shield: <path d="M12 3 4 6v6c0 4.5 3.4 8.3 8 9 4.6-.7 8-4.5 8-9V6l-8-3z" />,
-  sprout: <><path d="M12 21V11" /><path d="M12 13c-4.5 0-7.5-3-7.5-7.5 4.5 0 7.5 3 7.5 7.5zM12 11c0-4 3-7 7.5-7 0 4-3 7-7.5 7z" /></>,
+  logo: <><path d="M12 2.5 20.2 7.25v9.5L12 21.5l-8.2-4.75v-9.5z" /><path d="M15.2 9.6a4 4 0 1 0 0 4.8" /></>,
   arrowUp: <path d="M12 19V5M6 11l6-6 6 6" />,
   arrowDown: <path d="M12 5v14M6 13l6 6 6-6" />,
   heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
@@ -94,7 +94,7 @@ export function Spinner({ label = 'Загрузка…' }: { label?: string }) {
   return <div className="spinner-wrap" role="status"><span className="spinner" /> <span>{label}</span></div>;
 }
 
-export function Empty({ icon = 'sprout', title, children }: { icon?: string; title: string; children?: ReactNode }) {
+export function Empty({ icon = 'logo', title, children }: { icon?: string; title: string; children?: ReactNode }) {
   return <div className="empty"><Icon name={icon} size={40} /><h3>{title}</h3>{children && <div className="muted">{children}</div>}</div>;
 }
 

@@ -74,7 +74,7 @@ function Overview({ onClose }: { onClose: () => void }) {
   return (
     <div className="stack">
       <div className="row">
-        <div className="icon-preview">{c.icon_path ? <img src={publicMediaUrl(c.icon_path)!} alt="" /> : <Icon name="sprout" size={32} />}</div>
+        <div className="icon-preview">{c.icon_path ? <img src={publicMediaUrl(c.icon_path)!} alt="" /> : <Icon name="logo" size={32} />}</div>
         <label className="btn">Загрузить иконку<input type="file" hidden accept="image/png,image/jpeg,image/gif,image/webp" onChange={(e) => upload(e.target.files?.[0])} /></label>
         {c.icon_path && <button className="btn ghost" onClick={() => act('update_community', { p_id: c.id, p: { icon_path: null } }, 'Иконка убрана')}>Убрать</button>}
       </div>

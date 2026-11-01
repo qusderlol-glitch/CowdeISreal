@@ -33,6 +33,9 @@ exception when duplicate_object then null; end $$;
 create index if not exists profiles_handle_trgm on public.profiles using gin (handle gin_trgm_ops);
 create index if not exists profiles_name_trgm on public.profiles using gin (lower(display_name) gin_trgm_ops);
 
+-- цвет новых сообществ под тему «Графит» (существующие не меняются)
+alter table public.communities alter column accent_color set default '#22c55e';
+
 -- ─────────────────────────────── 2. Социальные настройки (видны только владельцу) ───────────────────────────────
 create or replace function public.profile_tags_ok(p text[]) returns boolean language sql immutable as $$
   select coalesce(bool_and(char_length(btrim(t)) between 1 and 24), true) from unnest(p) t;

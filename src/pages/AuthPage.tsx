@@ -103,10 +103,10 @@ export default function AuthPage() {
   return (
     <main className="auth">
       <section className="auth-hero" aria-hidden="true">
-        <div className="brand-row"><Icon name="sprout" size={34} /><span>{BRAND.name}</span></div>
-        <h1>Место, где растут сообщества.</h1>
+        <div className="brand-row"><Icon name="logo" size={34} /><span>{BRAND.name}</span></div>
+        <h1>Свои люди.<br />Свои правила.</h1>
         <p>{BRAND.tagline}</p>
-        <ul className="hero-points"><li>Комнаты для разговоров и звонков</li><li>Роли и права без подписок</li><li>Ранги за живое участие, а не за флуд</li></ul>
+        <ul className="hero-points"><li>Комнаты для текста, голоса и демонстрации экрана</li><li>Роли, права и модерация — без подписок</li><li>Друзья по @handle и личные сообщения</li></ul>
       </section>
       <section className="auth-card">
         <h2>{title}</h2>

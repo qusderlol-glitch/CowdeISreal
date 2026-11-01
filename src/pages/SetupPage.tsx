@@ -6,7 +6,7 @@ export default function SetupPage() {
   return (
     <main className="setup">
       <div className="setup-card">
-        <div className="brand-row"><Icon name="sprout" size={32} /><h1>{BRAND.name}</h1></div>
+        <div className="brand-row"><Icon name="logo" size={32} /><h1>{BRAND.name}</h1></div>
         <p className="lead">Инстанс ещё не подключён к бэкенду. Регистрация, сообщества, сообщения и звонки появятся после настройки Supabase.</p>
         <ol className="steps">
           <li>Создайте проект на <b>supabase.com</b> (бесплатный тариф подходит для старта).</li>

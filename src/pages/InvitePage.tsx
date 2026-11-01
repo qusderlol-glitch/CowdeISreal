@@ -24,7 +24,7 @@ export default function InvitePage() {
       {err && <ErrorBox error={err} />}
       {p && (p.valid || p.already_member ? (
         <>
-          <div className="invite-icon">{p.icon_path ? <img src={publicMediaUrl(p.icon_path)!} alt="" /> : <Icon name="sprout" size={40} />}</div>
+          <div className="invite-icon">{p.icon_path ? <img src={publicMediaUrl(p.icon_path)!} alt="" /> : <Icon name="logo" size={40} />}</div>
           <p className="muted">Вас пригласили в сообщество</p>
           <h1>{p.name}</h1>
           {p.description && <p>{p.description}</p>}
