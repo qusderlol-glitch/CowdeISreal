@@ -3,6 +3,7 @@ import { rpc } from '../lib/supabase';
 import { has, PERM } from '../lib/permissions';
 import { levelProgress } from '../lib/xp';
 import { useCommunity } from '../state/community';
+import { BRAND } from '../lib/brand';
 import { useSession } from '../state/session';
 import { useToast } from '../state/toast';
 import { Avatar, ErrorBox, Field, Icon, Modal, Spinner } from './ui';
@@ -48,7 +49,7 @@ export default function ProfileModal({ userId, onClose }: { userId: string; onCl
           {card.bio && <p className="bio">{card.bio}</p>}
           <dl className="facts">
             {card.timezone && <><dt>Часовой пояс</dt><dd>{card.timezone}{localTime ? ` (сейчас ${localTime})` : ''}</dd></>}
-            {card.created_at && <><dt>В {`RootApp`} с</dt><dd>{new Date(card.created_at).toLocaleDateString('ru-RU')}</dd></>}
+            {card.created_at && <><dt>В {BRAND.short} с</dt><dd>{new Date(card.created_at).toLocaleDateString('ru-RU')}</dd></>}
             {m && <><dt>В сообществе с</dt><dd>{new Date(m.joined_at).toLocaleDateString('ru-RU')}</dd></>}
             {m && p && community.xp_enabled && <><dt>Ранг</dt><dd>Уровень {p.level} · {m.xp} XP <span className="bar"><span style={{ width: `${Math.round(p.ratio * 100)}%` }} /></span></dd></>}
             {m?.timeout_until && new Date(m.timeout_until) > new Date() && <><dt>Заглушён до</dt><dd>{new Date(m.timeout_until).toLocaleString('ru-RU')}</dd></>}

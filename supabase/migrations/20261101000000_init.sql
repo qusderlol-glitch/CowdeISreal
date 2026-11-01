@@ -1,4 +1,4 @@
--- RootApp Community: схема, права, RLS, RPC, Storage и Realtime-авторизация.
+-- CowdeISreal: схема, права, RLS, RPC, Storage и Realtime-авторизация.
 -- Запуск: `supabase db push` ИЛИ Supabase -> SQL Editor -> вставить весь файл -> Run. Повторный запуск безопасен.
 --
 -- Принципы:
@@ -1386,11 +1386,13 @@ grant execute on function public.realtime_topic_allowed(text, boolean) to authen
 
 do $$ begin
   if to_regclass('realtime.messages') is not null then
-    execute 'drop policy if exists "rootapp topics read" on realtime.messages';
-    execute $p$create policy "rootapp topics read" on realtime.messages for select to authenticated
-      using (extension in ('broadcast','presence') and public.realtime_topic_allowed(realtime.topic(), false))$p$;
+    execute 'drop policy if exists "rootapp topics read" on realtime.messages';  -- старое имя политики
     execute 'drop policy if exists "rootapp topics write" on realtime.messages';
-    execute $p$create policy "rootapp topics write" on realtime.messages for insert to authenticated
+    execute 'drop policy if exists "cowdeisreal topics read" on realtime.messages';
+    execute $p$create policy "cowdeisreal topics read" on realtime.messages for select to authenticated
+      using (extension in ('broadcast','presence') and public.realtime_topic_allowed(realtime.topic(), false))$p$;
+    execute 'drop policy if exists "cowdeisreal topics write" on realtime.messages';
+    execute $p$create policy "cowdeisreal topics write" on realtime.messages for insert to authenticated
       with check (extension in ('broadcast','presence') and public.realtime_topic_allowed(realtime.topic(), true))$p$;
   end if;
 end $$;

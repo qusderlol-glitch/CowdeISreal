@@ -8,6 +8,7 @@ import { useSession } from '../state/session';
 import { useToast } from '../state/toast';
 import { Empty, ErrorBox, Field, Icon, Modal, Spinner, Toggle } from './ui';
 import InviteCreator, { inviteUrl } from './InviteCreator';
+import { appUrl } from '../lib/brand';
 
 type Tab = 'overview' | 'channels' | 'roles' | 'tags' | 'bans' | 'invites' | 'ranks' | 'bots' | 'audit' | 'resources';
 
@@ -89,7 +90,7 @@ function Overview({ onClose }: { onClose: () => void }) {
           <p className="muted small">Удалятся все каналы, сообщения и роли. Файлы вложений в Storage нужно будет очистить отдельно (см. README).</p>
           <button className="btn danger" onClick={async () => {
             const n = prompt(`Введите «${c.name}» для подтверждения`);
-            if (n !== null && (await act('delete_community', { p_id: c.id, p_confirm_name: n }, 'Сообщество удалено')) !== undefined) { onClose(); location.assign('/app'); }
+            if (n !== null && (await act('delete_community', { p_id: c.id, p_confirm_name: n }, 'Сообщество удалено')) !== undefined) { onClose(); location.assign(appUrl('/app')); }
           }}>Удалить навсегда</button>
         </details>
       )}

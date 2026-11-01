@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { publicMediaUrl, rpc } from '../lib/supabase';
 import { ErrorBox, Icon, Spinner } from '../components/ui';
 
@@ -33,7 +33,7 @@ export default function InvitePage() {
             {p.already_member ? 'Открыть' : busy ? 'Вступаем…' : 'Вступить'}
           </button>
         </>
-      ) : <><h1>Не получится вступить</h1><p>{REASONS[p.reason ?? ''] ?? 'Приглашение недействительно.'}</p><a className="btn" href="/app">На главную</a></>)}
+      ) : <><h1>Не получится вступить</h1><p>{REASONS[p.reason ?? ''] ?? 'Приглашение недействительно.'}</p><Link className="btn" to="/app">На главную</Link></>)}
     </section></main>
   );
 }

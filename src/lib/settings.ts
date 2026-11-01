@@ -5,7 +5,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   notifyDesktop: false, notifyMentionsOnly: true, notifySound: true, micId: '', camId: '', speakerId: '',
   noiseSuppression: true, echoCancellation: true,
 };
-const LS = 'rootapp.settings';
+const LS = 'cowdeisreal.settings';
 
 export function loadLocalSettings(): UserSettings {
   try { return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(LS) || '{}') }; } catch { return { ...DEFAULT_SETTINGS }; }

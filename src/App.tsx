@@ -1,6 +1,7 @@
 import type { ReactElement } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { isConfigured } from './lib/supabase';
+import { BASE } from './lib/brand';
 import { SessionProvider, useSession } from './state/session';
 import { ToastProvider } from './state/toast';
 import { CallProvider } from './state/call';
@@ -25,7 +26,7 @@ export default function App() {
     <ToastProvider>
       <SessionProvider>
         <CallProvider>
-          <BrowserRouter>
+          <BrowserRouter basename={BASE || undefined}>
             <Routes>
               <Route path="/login" element={<AuthPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />

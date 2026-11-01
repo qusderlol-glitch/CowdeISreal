@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { rpc } from '../lib/supabase';
 import { useToast } from '../state/toast';
 import { Field, Icon } from './ui';
+import { appUrl } from '../lib/brand';
 
 const EXPIRY = [
   { v: 1800, l: '30 минут' }, { v: 3600, l: '1 час' }, { v: 86400, l: '1 день' }, { v: 604800, l: '7 дней' }, { v: 2592000, l: '30 дней' }, { v: 0, l: 'Бессрочно' },
 ];
-export function inviteUrl(code: string) { return `${location.origin}/invite/${code}`; }
+export function inviteUrl(code: string) { return appUrl(`/invite/${code}`); }
 
 export default function InviteCreator({ cid, onCreated }: { cid: string; onCreated?: () => void }) {
   const toast = useToast();
