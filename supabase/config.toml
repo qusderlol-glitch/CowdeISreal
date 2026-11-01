@@ -1,0 +1,32 @@
+# Минимальная конфигурация для `supabase start` / `supabase db push`. Полный список параметров: supabase init.
+project_id = "rootapp-community"
+
+[api]
+port = 54321
+
+[db]
+port = 54322
+major_version = 17
+
+[realtime]
+enabled = true
+
+[storage]
+enabled = true
+file_size_limit = "10MiB"
+
+[auth]
+enabled = true
+site_url = "http://localhost:5173"
+additional_redirect_urls = ["http://localhost:5173/reset-password"]
+enable_signup = true
+
+[auth.email]
+enable_signup = true
+enable_confirmations = true
+
+[functions.turn-credentials]
+verify_jwt = true
+
+[functions.sfu-token]
+verify_jwt = true

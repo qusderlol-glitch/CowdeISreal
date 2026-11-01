@@ -1,0 +1,9 @@
+node_modules
+dist
+.env
+.env.local
+supabase/.temp
+.pgtest
+test-results
+.pgtest-e2e
+.e2e
