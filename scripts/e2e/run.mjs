@@ -2,6 +2,7 @@
 import { createRequire } from 'node:module';
 const { chromium } = createRequire(import.meta.url)('playwright');
 import { Stand } from './stand.mjs';
+import { RealtimeHub } from './realtime.mjs';
 import { mkdirSync } from 'node:fs';
 
 const BASE = process.env.E2E_BASE;
@@ -12,16 +13,21 @@ const stand = new Stand(process.env.E2E_DB);
 await stand.init();
 const log = []; stand.log = (l) => log.push(l);
 
-const browser = await chromium.launch();
+// поддельные микрофон/камера Chromium: звонок в тесте передаёт настоящий звук (тон) между двумя браузерами
+const browser = await chromium.launch({ args: ['--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream', '--autoplay-policy=no-user-gesture-required'] });
+const hub = new RealtimeHub(stand);
 const pageErrors = [];
 const pages = [];
 let step = 0;
 const ok = (msg) => console.log(`  ✓ ${++step}. ${msg}`);
 
-async function ctx(viewport = { width: 1366, height: 860 }) {
-  const c = await browser.newContext({ viewport });
+async function ctx(viewport = { width: 1366, height: 860 }, { realtime = false } = {}) {
+  const c = await browser.newContext({ viewport, permissions: realtime ? ['microphone', 'camera'] : [] });
   await c.route('http://stand.test/**', (r) => stand.handle(r));
-  await c.routeWebSocket(/stand\.test/, (ws) => ws.close()); // Realtime в стенде отсутствует
+  // по умолчанию Realtime недоступен (проверяем честную деградацию); с realtime=true — эмулятор (звонки)
+  await c.routeWebSocket(/stand\.test/, (ws) => (realtime ? hub.attach(ws) : ws.close()));
+  // для диагностики звонков: запоминаем созданные RTCPeerConnection
+  if (realtime) await c.addInitScript(() => { const O = window.RTCPeerConnection; window.__pcs = []; window.RTCPeerConnection = function (...a) { const pc = new O(...a); window.__pcs.push(pc); return pc; }; window.RTCPeerConnection.prototype = O.prototype; });
   const p = await c.newPage();
   pages.push(p);
   p.on('console', (m) => { if (m.type() === 'error' && !/WebSocket|realtime|ERR_|Failed to load resource/.test(m.text())) pageErrors.push(`console: ${m.text()}`); });
@@ -80,6 +86,7 @@ try {
   await a.screenshot({ path: `${SHOTS}/01-home.png` });
   ok('верный код из письма подтверждает почту и сразу открывает приложение');
   await a.locator('.main').getByRole('button', { name: 'Создать или вступить' }).click();
+  await a.getByRole('button', { name: /Своё с нуля/ }).click();
   await a.getByLabel('Название').fill('Клуб садоводов');
   await a.getByRole('button', { name: 'Создать', exact: true }).click();
   await a.waitForURL(/\/app\/[0-9a-f-]{36}\/[0-9a-f-]{36}$/);
@@ -209,6 +216,7 @@ try {
 
   // 6. Друзья: поиск с опечаткой, заявка, принятие, личные сообщения
   await a.goto(`${BASE}/app/friends`);
+  await a.getByRole('tab', { name: 'Добавить друга' }).click();
   await a.getByLabel('Поиск людей').fill('bbo');
   await expectText(a, 'Возможно, вы имели в виду');
   await a.locator('.search-results li', { hasText: '@bob' }).getByRole('button', { name: /Добавить/ }).click();
@@ -216,9 +224,9 @@ try {
   ok('поиск с опечаткой «bbo» подсказал @bob, заявка отправлена');
   await b.goto(`${BASE}/app/friends`);
   await b.getByRole('tab', { name: /Заявки/ }).click();
-  await b.locator('.people-list li', { hasText: 'Алиса' }).getByRole('button', { name: 'Принять' }).click();
+  await b.locator('.friend-rows li', { hasText: 'Алиса' }).getByRole('button', { name: 'Принять' }).click();
   await expectText(b, 'Теперь вы друзья');
-  await b.getByRole('tab', { name: /Друзья/ }).click();
+  await b.getByRole('tab', { name: 'Все' }).click();
   await b.getByRole('button', { name: 'Написать Алиса' }).click();
   await b.waitForURL(/\/app\/friends\/[0-9a-f-]{36}$/);
   await b.getByLabel('Текст личного сообщения').fill('Привет в личке!');
@@ -270,6 +278,76 @@ try {
   await expectText(a, 'Оформление сохранено');
   await a.screenshot({ path: `${SHOTS}/10-customize.png` });
   ok('кастомизация применяется сразу (тема «Океан», пузыри «Облачко»), оформление профиля сохраняется');
+
+  // 9. Настоящий звонок другу: два браузера, WebRTC, сигнализация через эмулятор Realtime
+  async function login(p, email, pw) {
+    await p.goto(`${BASE}/login`);
+    await p.getByLabel('Почта').fill(email); await p.getByLabel('Пароль').fill(pw);
+    await p.getByRole('button', { name: 'Войти' }).click(); await p.waitForURL(/\/app/);
+  }
+  const ra = await ctx(undefined, { realtime: true }); await login(ra, 'alice@example.com', 'new-garden-pass');
+  const rb = await ctx(undefined, { realtime: true }); await login(rb, 'bob@example.com', 'correct-horse-1');
+  await rb.goto(`${BASE}/app/friends`);
+  await rb.getByRole('button', { name: 'Позвонить Алиса' }).click();
+  await rb.waitForURL(/\/app\/friends\/[0-9a-f-]{36}$/);
+  await expectText(rb, /Звоним/, 10000);
+  await ra.goto(`${BASE}/app/friends`);
+  await ra.locator('.incoming-call').waitFor({ timeout: 15000 });
+  await expectText(ra, 'Входящий звонок');
+  ok('кнопка «Позвонить» в строке друга: у звонящего «Звоним…», у друга всплыло «Входящий звонок»');
+  await ra.locator('.incoming-call').getByRole('button', { name: 'Принять' }).click();
+  await ra.locator('.callbar-status', { hasText: 'Идёт звонок' }).waitFor({ timeout: 20000 });
+  await rb.locator('.callbar-status', { hasText: 'Идёт звонок' }).waitFor({ timeout: 20000 });
+  ok('WebRTC-соединение установлено у обоих («Идёт звонок»)');
+  // худший случай: оба включают микрофон одновременно
+  await Promise.all([ra, rb].map((p) => p.locator('.call-dock').getByRole('button', { name: /Микрофон/ }).click()));
+  const audioFlows = async (p) => p.waitForFunction(() => [...document.querySelectorAll('audio')].some((el) => {
+    const s = el.srcObject; return s instanceof MediaStream && s.getAudioTracks().some((t) => t.readyState === 'live' && !t.muted);
+  }), null, { timeout: 15000 });
+  const rtcDump = (p) => p.evaluate(async () => {
+    const out = { audio: [...document.querySelectorAll('audio')].map((el) => (el.srcObject?.getTracks?.() ?? []).map((t) => `${t.kind}:${t.readyState}:muted=${t.muted}`)), pcs: [] };
+    for (const pc of window.__pcs ?? []) {
+      const st = await pc.getStats(); const s = { conn: pc.connectionState, sig: pc.signalingState, tx: pc.getTransceivers().map((t) => `${t.mid}:${t.direction}/${t.currentDirection}:send=${t.sender.track ? t.sender.track.readyState : 'none'}`) };
+      st.forEach((r) => { if (r.type === 'outbound-rtp' && r.kind === 'audio') s.sent = r.packetsSent; if (r.type === 'inbound-rtp' && r.kind === 'audio') s.recv = r.packetsReceived; });
+      out.pcs.push(s);
+    }
+    return JSON.stringify(out);
+  });
+  try { await audioFlows(ra); await audioFlows(rb); }
+  catch (e) { console.error('RTC Алиса:', await rtcDump(ra)); console.error('RTC Боб:', await rtcDump(rb)); console.error(hub.log.slice(-10).join('\n')); throw e; }
+  // звук реально идёт: индикатор «говорит» загорается у собеседника от тона поддельного микрофона
+  await ra.locator('.callbar-people .speaking').first().waitFor({ timeout: 15000 });
+  await ra.waitForTimeout(300);
+  await ra.screenshot({ path: `${SHOTS}/11-dm-call.png` });
+  ok('звук идёт в обе стороны: у каждого живая аудиодорожка собеседника, индикатор речи срабатывает');
+  await rb.getByRole('button', { name: 'Завершить' }).click();
+  await ra.locator('.callbar-status', { hasText: /Звоним|Идёт звонок/ }).waitFor({ timeout: 5000 }).catch(() => {});
+  await rb.locator('.call-event').first().waitFor();
+  ok('звонок завершён, в переписке осталась запись о звонке');
+
+  // 10. Каналы прямо из списка комнат: создать и удалить
+  await a.goto(`${BASE}/app`);
+  await a.locator('.community-tabs').getByText('Клуб садоводов').click();
+  await a.getByRole('button', { name: 'Создать канал в Голосовые' }).click();
+  await a.getByLabel('Название канала').fill('Игра 1');
+  await a.getByRole('button', { name: 'Создать канал', exact: true }).click();
+  await a.getByRole('link', { name: /Игра 1/ }).waitFor();
+  await a.locator('.room-wrap', { hasText: 'Игра 1' }).hover();
+  await a.getByRole('button', { name: 'Настроить канал Игра 1' }).click();
+  a.once('dialog', (d) => d.accept());
+  await a.getByRole('button', { name: /Удалить канал/ }).click();
+  await expectText(a, 'Канал удалён');
+  await a.getByRole('link', { name: /Игра 1/ }).waitFor({ state: 'detached', timeout: 8000 });
+  ok('канал создан кнопкой «+» у категории и удалён через шестерёнку');
+
+  // 11. Шаблон сообщества
+  await a.locator('.community-tabs').getByRole('button', { name: 'Создать или вступить' }).click();
+  await a.getByRole('button', { name: /Игры/ }).click();
+  await a.getByLabel('Название').fill('Игровая');
+  await a.getByRole('button', { name: 'Создать', exact: true }).click();
+  for (const n of ['поиск-тиммейтов', 'Игра 1', 'Игра 2', 'Стрим']) await a.getByRole('link', { name: new RegExp(n) }).waitFor();
+  await a.screenshot({ path: `${SHOTS}/12-template.png` });
+  ok('шаблон «Игры» создал каналы для игр и голосовые комнаты');
 
   // 5. Неверный (старый) пароль
   const w = await ctx();

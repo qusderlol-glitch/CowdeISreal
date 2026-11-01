@@ -7,6 +7,8 @@ export interface RemoteParticipant {
   camera: MediaStream | null;
   screen: MediaStream | null;
   state: RTCPeerConnectionState | 'new';
+  /** причина неудачи соединения: no_relay — прямой путь закрыт сетью и нет TURN; relay_failed — TURN есть, но не помог */
+  diag: 'no_relay' | 'relay_failed' | null;
 }
 
 export interface LocalMedia { mic: MediaStream | null; camera: MediaStream | null; screen: MediaStream | null }
@@ -22,6 +24,8 @@ export interface CallEngine {
   readonly participants: Map<string, RemoteParticipant>;
   readonly state: ConnState;
   readonly error: string | null;
+  /** Уровень звука собеседников 0..1 по данным WebRTC (для индикатора «говорит») */
+  getLevels?(): Map<string, number>;
 }
 
 export function configuredProvider(): 'mesh' | 'sfu' {

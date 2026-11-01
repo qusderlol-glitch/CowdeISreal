@@ -20,4 +20,4 @@ npx vite preview --outDir .e2e/configured --port 4173 --strictPort >/dev/null 2>
 npx vite preview --outDir .e2e/unconfigured --port 4174 --strictPort >/dev/null 2>&1 & P2=$!
 for i in $(seq 1 40); do curl -s localhost:4173 >/dev/null && curl -s localhost:4174 >/dev/null && break; sleep 0.25; done
 E2E_BASE=http://localhost:4173 E2E_BASE_UNCONFIGURED=http://localhost:4174 E2E_SHOTS="${E2E_SHOTS:-$ROOT/docs/screenshots}" \
-E2E_DB="postgresql://postgres@localhost/postgres?host=$DATA&port=$PORT" node scripts/e2e/run.mjs
+E2E_DB="postgresql://postgres@localhost/postgres?host=$DATA&port=$PORT" node "${E2E_SCRIPT:-scripts/e2e/run.mjs}"

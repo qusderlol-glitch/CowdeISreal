@@ -414,7 +414,8 @@ begin
   on conflict (user_id, thread_id) do update set last_read_id = greatest(dm_read_states.last_read_id, excluded.last_read_id);
 end $$;
 
-create or replace function public.dm_threads()
+drop function if exists public.dm_threads();  -- набор полей менялся в следующих миграциях
+create function public.dm_threads()
 returns table (thread_id uuid, other_id uuid, handle text, display_name text, avatar_path text, avatar_frame text,
                last_message_at timestamptz, last_content text, unread int, is_friend boolean)
 language sql stable security definer set search_path = public as $$

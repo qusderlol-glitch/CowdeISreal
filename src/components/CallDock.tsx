@@ -15,8 +15,8 @@ export default function CallDock() {
   if (!call.channelId || call.status === 'failed') return null;
   return (
     <div className={`call-dock ${call.status}`} role="toolbar" aria-label="Управление звонком">
-      <Link className="dock-room" to={`/app/${call.communityId}/${call.channelId}`}>
-        <i className="dock-led" /><span><b>{call.status === 'joining' ? 'Подключение…' : call.channelName}</b>
+      <Link className="dock-room" to={call.kind === 'dm' ? `/app/friends/${call.channelId}` : `/app/${call.communityId}/${call.channelId}`}>
+        <i className="dock-led" /><span><b>{call.status === 'joining' ? 'Подключение…' : call.kind === 'dm' ? `Звонок: ${call.channelName}` : call.channelName}</b>
           <small>{call.screen ? 'вы показываете экран' : !call.mic ? 'микрофон выключен' : settings.pushToTalk ? 'рация: держите клавишу' : 'микрофон включён'}</small></span>
       </Link>
       <button className={`dock-btn ${call.mic ? 'on' : ''}`} onClick={call.toggleMic} aria-pressed={!!call.mic} title={call.mic ? 'Выключить микрофон' : 'Включить микрофон'}>

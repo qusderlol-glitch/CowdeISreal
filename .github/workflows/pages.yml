@@ -23,6 +23,7 @@ jobs:
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ vars.VITE_SUPABASE_ANON_KEY }}
           VITE_TURN_ENABLED: ${{ vars.VITE_TURN_ENABLED || 'false' }}
+          VITE_ICE_SERVERS: ${{ vars.VITE_ICE_SERVERS }}
       - run: cp dist/index.html dist/404.html  # SPA: любой путь отдаёт приложение
       - uses: actions/upload-pages-artifact@v3
         with: { path: dist }

@@ -8,7 +8,13 @@ import { useSession } from './session';
 import { useToast } from './toast';
 import { playSound } from '../lib/sound';
 
+// Куда звоним: комната сообщества или личный звонок другу (диалог ЛС)
+export type DmTarget = { target: 'dm'; id: string; name: string; otherId: string };
+type ChannelTarget = { id: string; community_id: string; name: string };
+const isDm = (t: DmTarget | ChannelTarget): t is DmTarget => (t as DmTarget).target === 'dm';
+
 export interface CallState {
+  kind: 'channel' | 'dm' | null; otherId: string | null;
   channelId: string | null; communityId: string | null; channelName: string;
   status: 'idle' | 'joining' | 'connected' | 'failed';
   error: string | null; turn: 'none' | 'ok' | 'error';
@@ -20,7 +26,7 @@ export interface CallState {
   volumes: Record<string, number>;
 }
 interface Ctx extends CallState {
-  join: (channel: { id: string; community_id: string; name: string }) => Promise<void>;
+  join: (target: ChannelTarget | DmTarget) => Promise<void>;
   leave: (reason?: string) => Promise<void>;
   toggleMic: () => Promise<void>; toggleCamera: () => Promise<void>; toggleScreen: () => Promise<void>; toggleDeafen: () => Promise<void>;
   setVolume: (uid: string, v: number) => void;
@@ -28,7 +34,7 @@ interface Ctx extends CallState {
 }
 const CallCtx = createContext<Ctx>(null as unknown as Ctx);
 
-const initial: CallState = { channelId: null, communityId: null, channelName: '', status: 'idle', error: null, turn: 'none',
+const initial: CallState = { kind: null, otherId: null, channelId: null, communityId: null, channelName: '', status: 'idle', error: null, turn: 'none',
   mic: null, camera: null, screen: null, deafened: false, canVideo: false, participants: [], speaking: new Set(), volumes: {} };
 
 export function CallProvider({ children }: { children: ReactNode }) {
@@ -50,7 +56,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const pushState = useCallback(async (patch: Partial<CallState>) => {
     const s = { ...stRef.current, ...patch };
     if (!s.channelId) return;
-    await rpc('voice_update', { p_channel: s.channelId, p_muted: !s.mic, p_deafened: s.deafened, p_video: !!s.camera, p_screen: !!s.screen }).catch(toast.fail);
+    if (s.kind === 'dm') await rpc('dm_call_update', { p_thread: s.channelId, p_muted: !s.mic, p_video: !!s.camera, p_screen: !!s.screen }).catch(toast.fail);
+    else await rpc('voice_update', { p_channel: s.channelId, p_muted: !s.mic, p_deafened: s.deafened, p_video: !!s.camera, p_screen: !!s.screen }).catch(toast.fail);
   }, [toast]);
 
   const stopAll = useCallback(() => {
@@ -65,36 +72,42 @@ export function CallProvider({ children }: { children: ReactNode }) {
     stopAll();
     const e = engine.current; engine.current = null;
     await e?.leave().catch(() => {});
-    if (s.channelId) await rpc('voice_leave', { p_channel: s.channelId }).catch(() => {});
+    if (s.channelId) {
+      if (s.kind === 'dm') await rpc('dm_call_leave', { p_thread: s.channelId }).catch(() => {});
+      else await rpc('voice_leave', { p_channel: s.channelId }).catch(() => {});
+    }
     setSt(initial);
     if (reason) toast.push(reason, 'info');
   }, [stopAll, toast]);
 
-  const join = useCallback(async (channel: { id: string; community_id: string; name: string }) => {
+  const join = useCallback(async (target: ChannelTarget | DmTarget) => {
     if (!uid) return;
-    if (stRef.current.channelId === channel.id && stRef.current.status !== 'failed') return;
+    const dm = isDm(target);
+    if (stRef.current.channelId === target.id && stRef.current.status !== 'failed') return;
     if (stRef.current.channelId) await leave();
     if (typeof RTCPeerConnection === 'undefined') { toast.push('Браузер не поддерживает WebRTC.', 'error'); return; }
-    setSt({ ...initial, channelId: channel.id, communityId: channel.community_id, channelName: channel.name, status: 'joining' });
+    setSt({ ...initial, kind: dm ? 'dm' : 'channel', otherId: dm ? target.otherId : null, channelId: target.id,
+      communityId: dm ? null : target.community_id, channelName: target.name, status: 'joining' });
     try {
       if (configuredProvider() === 'sfu') throw new Error('SFU-провайдер выбран (VITE_CALL_PROVIDER=sfu), но клиентский адаптер не подключён. См. README → «Голос и видео».');
-      await rpc('voice_join', { p_channel: channel.id });
-      const canVideo = await rpc<boolean>('has_channel_perm', { p_channel: channel.id, p_perm: 1024 }).catch(() => false);
+      if (dm) await rpc('dm_call_join', { p_thread: target.id });
+      else await rpc('voice_join', { p_channel: target.id });
+      const canVideo = dm ? true : await rpc<boolean>('has_channel_perm', { p_channel: target.id, p_perm: 1024 }).catch(() => false);
       setSt((s) => ({ ...s, canVideo }));
       const ice = await getIceServers();
-      const e = new MeshCall(supabase, channel.id, uid, ice.servers);
+      const e = new MeshCall(supabase, dm ? `dmcall:${target.id}` : `voice:${target.id}`, uid, ice.servers);
       engine.current = e;
       e.onChange(sync);
       await e.join();
       setSt((s) => ({ ...s, status: 'connected', turn: ice.turn }));
       if (ice.turn === 'error') toast.push('TURN недоступен: звонки через строгий NAT могут не соединиться.', 'error');
       hb.current = window.setInterval(async () => {
-        const ok = await rpc<boolean>('voice_heartbeat', { p_channel: channel.id }).catch(() => true);
-        if (!ok) void leave('Вы отключены от голосовой комнаты.');
+        const ok = await (dm ? rpc<boolean>('dm_call_heartbeat', { p_thread: target.id }) : rpc<boolean>('voice_heartbeat', { p_channel: target.id })).catch(() => true);
+        if (!ok) void leave(dm ? 'Звонок завершён.' : 'Вы отключены от голосовой комнаты.');
       }, 15_000);
     } catch (err) {
       engine.current?.leave().catch(() => {}); engine.current = null;
-      await rpc('voice_leave', { p_channel: channel.id }).catch(() => {});
+      await (dm ? rpc('dm_call_leave', { p_thread: target.id }) : rpc('voice_leave', { p_channel: target.id })).catch(() => {});
       setSt((s) => ({ ...s, status: 'failed', error: err instanceof Error ? err.message : String(err) }));
     }
   }, [uid, leave, sync, toast]);
@@ -108,7 +121,28 @@ export function CallProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
-  useEffect(() => { for (const p of st.participants) if (!meters.current.has(p.userId) && p.audio) watchSpeaking(p.userId, p.audio); }, [st.participants, watchSpeaking]);
+  // «говорит» у собеседников — по уровню звука из WebRTC; у себя — по микрофону (Web Audio)
+  useEffect(() => {
+    if (st.status !== 'connected') return;
+    // audioLevel из RTP — линейная амплитуда (1 = 0 дБ); речь обычно 0.01–0.1, тишина с шумоподавлением < 0.002.
+    // Настройка «Чувствительность» (0.04–0.4, по умолчанию 0.12) переводится в этот масштаб: 0.12 → ≈0.01.
+    const loudAt = new Map<string, number>();
+    const iv = window.setInterval(() => {
+      const levels = engine.current?.getLevels?.(); if (!levels) return;
+      const thr = (Number(settingsRef.current.speakingThreshold) || 0.12) * 0.08;
+      const now = Date.now();
+      setSt((s) => {
+        const n = new Set(s.speaking); let changed = false;
+        for (const [id, lvl] of levels) {
+          if (lvl > thr) loudAt.set(id, now);
+          const on = now - (loudAt.get(id) ?? 0) < 400; // удержание, чтобы индикатор не мерцал между слогами
+          if (n.has(id) !== on) { changed = true; if (on) n.add(id); else n.delete(id); }
+        }
+        return changed ? { ...s, speaking: n } : s;
+      });
+    }, 100);
+    return () => window.clearInterval(iv);
+  }, [st.status]);
 
   const toggleMic = useCallback(async () => {
     const e = engine.current; if (!e) return;

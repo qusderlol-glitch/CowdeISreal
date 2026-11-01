@@ -13,8 +13,8 @@ export interface ProfileSocial {
   discoverable: boolean; discovery_bio: string; interests: string[]; looking_for: string[];
 }
 export interface FriendRequest { id: number; from_id: string; to_id: string; status: string; source: string; created_at: string; from?: Profile; to?: Profile }
-export interface DmThread { thread_id: string; other_id: string; handle: string; display_name: string; avatar_path: string | null; avatar_frame: AvatarFrame; last_message_at: string | null; last_content: string | null; unread: number; is_friend: boolean }
-export interface DirectMessage { id: number; thread_id: string; author_id: string | null; content: string; created_at: string; edited_at: string | null; deleted_at: string | null; _pending?: boolean; _failed?: string; _tmp?: string }
+export interface DmThread { thread_id: string; other_id: string; handle: string; display_name: string; avatar_path: string | null; avatar_frame: AvatarFrame; last_message_at: string | null; last_content: string | null; unread: number; is_friend: boolean; call_active: boolean }
+export interface DirectMessage { id: number; thread_id: string; author_id: string | null; content: string; kind?: 'user' | 'call'; created_at: string; edited_at: string | null; deleted_at: string | null; _pending?: boolean; _failed?: string; _tmp?: string }
 export interface DeckCard extends ProfileStyle { id: string; handle: string; display_name: string; avatar_path: string | null; discovery_bio: string; interests: string[]; looking_for: string[]; shared_interests: number; mutual_friends: number }
 export interface ProfilePrivate {
   user_id: string; bio: string; status_text: string; presence: 'online' | 'idle' | 'dnd' | 'invisible'; timezone: string;

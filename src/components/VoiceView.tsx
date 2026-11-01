@@ -7,6 +7,7 @@ import { useCall } from '../state/call';
 import { useCommunity } from '../state/community';
 import { useSession } from '../state/session';
 import { Avatar, ErrorBox, Icon, Modal, Field, Spinner } from './ui';
+import { CallStatusBanner } from './CallParts';
 
 function Video({ stream, mirror, label }: { stream: MediaStream; mirror?: boolean; label: string }) {
   const ref = useRef<HTMLVideoElement>(null);
@@ -72,8 +73,9 @@ export default function VoiceView({ channel }: { channel: Channel }) {
                 {displayName(p.userId)}
                 {st?.muted && <Icon name="micOff" size={14} title="Микрофон выключен" />}
                 {st?.deafened && <Icon name="headphonesOff" size={14} title="Звук выключен" />}
-                {p.state !== 'connected' && <span className="pill">{p.state === 'new' || p.state === 'connecting' ? 'соединение…' : p.state === 'failed' ? 'нет связи' : p.state}</span>}
+                {p.state !== 'connected' && <span className="pill">{p.state === 'new' || p.state === 'connecting' ? 'соединение…' : p.state === 'failed' ? 'нет связи' : p.state === 'disconnected' ? 'переподключение…' : p.state}</span>}
               </figcaption>
+              <CallStatusBanner p={p} turn={call.turn} />
               <label className="vol" title="Громкость участника">
                 <Icon name="speaker" size={14} />
                 <input type="range" min={0} max={1} step={0.05} value={call.volumes[p.userId] ?? Number(settings.defaultVolume ?? 1)} onChange={(e) => call.setVolume(p.userId, Number(e.target.value))} aria-label={`Громкость ${displayName(p.userId)}`} />

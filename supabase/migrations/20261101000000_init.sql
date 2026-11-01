@@ -500,7 +500,8 @@ begin
 end $$;
 
 -- ─────────────────────────────── 4. Сообщества ───────────────────────────────
-create or replace function public.create_community(p_name text, p_description text default '') returns uuid
+drop function if exists public.create_community(text, text);  -- сигнатура с шаблоном (p_template) — в 20261104
+create or replace function public.create_community(p_name text, p_description text default '', p_template text default 'custom') returns uuid
 language plpgsql security definer set search_path = public as $$
 declare v_uid uuid := public._uid(); v_id uuid; v_cat_text uuid; v_cat_voice uuid;
 begin

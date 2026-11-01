@@ -1,12 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { rpc, supabase } from '../lib/supabase';
-import type { DirectMessage, FriendRequest } from '../lib/types';
+import type { DirectMessage, DmThread, FriendRequest } from '../lib/types';
 import { useSession } from './session';
 import { useToast } from './toast';
 import { inQuietHours, playSound } from '../lib/sound';
 
-interface Ctx { incoming: number; unreadDms: number; version: number; refresh: () => void; setActiveThread: (id: string | null) => void }
-const SocialCtx = createContext<Ctx>({ incoming: 0, unreadDms: 0, version: 0, refresh: () => {}, setActiveThread: () => {} });
+interface Ctx { incoming: number; unreadDms: number; version: number; threads: DmThread[] | null; refresh: () => void; setActiveThread: (id: string | null) => void }
+const SocialCtx = createContext<Ctx>({ incoming: 0, unreadDms: 0, version: 0, threads: null, refresh: () => {}, setActiveThread: () => {} });
 
 // Счётчики «Друзей»: входящие заявки и непрочитанные ЛС; обновляются через Realtime (с RLS) и при фокусе вкладки.
 export function SocialProvider({ children }: { children: ReactNode }) {
@@ -14,6 +14,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
   const toast = useToast();
   const [counts, setCounts] = useState({ incoming: 0, unreadDms: 0 });
   const [version, setVersion] = useState(0);
+  const [threads, setThreads] = useState<DmThread[] | null>(null);
   const timer = useRef(0);
   const active = useRef<string | null>(null);
   const settingsRef = useRef(settings); settingsRef.current = settings;
@@ -23,6 +24,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
     timer.current = window.setTimeout(() => {
       rpc<{ incoming: number; unread_dms: number }>('social_counts')
         .then((c) => setCounts({ incoming: Number(c.incoming), unreadDms: Number(c.unread_dms) })).catch(() => {});
+      rpc<DmThread[]>('dm_threads').then(setThreads).catch(() => {});
       setVersion((v) => v + 1);
     }, 300);
   }, []);
@@ -45,6 +47,7 @@ export function SocialProvider({ children }: { children: ReactNode }) {
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'friendships' }, refresh)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'dm_call_states' }, refresh)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'direct_messages' }, ({ new: n }) => {
         const m = n as DirectMessage;
         if (m.author_id === uid) return;
@@ -54,10 +57,12 @@ export function SocialProvider({ children }: { children: ReactNode }) {
       .subscribe();
     const onFocus = () => refresh();
     window.addEventListener('focus', onFocus);
-    return () => { void supabase.removeChannel(ch); window.removeEventListener('focus', onFocus); };
+    // страховка без Realtime: входящие звонки и заявки появятся в течение ~8 секунд
+    const iv = window.setInterval(refresh, 8000);
+    return () => { void supabase.removeChannel(ch); window.removeEventListener('focus', onFocus); window.clearInterval(iv); };
   }, [uid, refresh, toast]);
 
   const setActiveThread = useCallback((id: string | null) => { active.current = id; }, []);
-  return <SocialCtx.Provider value={{ ...counts, version, refresh, setActiveThread }}>{children}</SocialCtx.Provider>;
+  return <SocialCtx.Provider value={{ ...counts, version, threads, refresh, setActiveThread }}>{children}</SocialCtx.Provider>;
 }
 export const useSocial = () => useContext(SocialCtx);

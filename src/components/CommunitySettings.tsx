@@ -164,7 +164,7 @@ function Channels() {
 
 const OVERWRITE_PERMS = ['VIEW_CHANNELS', 'SEND_MESSAGES', 'ATTACH_FILES', 'ADD_REACTIONS', 'MANAGE_MESSAGES', 'CONNECT_VOICE', 'STREAM_VIDEO', 'USE_COMMANDS'] as const;
 
-function ChannelEditor({ channel, onClose }: { channel: Channel; onClose: () => void }) {
+export function ChannelEditor({ channel, onClose }: { channel: Channel; onClose: () => void }) {
   const { data } = useCommunity(); const act = useAct();
   const [f, setF] = useState({ name: channel.name, topic: channel.topic, slowmode_seconds: channel.slowmode_seconds, category_id: channel.category_id });
   const [ow, setOw] = useState<{ role_id: string; allow: number; deny: number }[] | null>(null);
@@ -191,7 +191,13 @@ function ChannelEditor({ channel, onClose }: { channel: Channel; onClose: () => 
         </>}
         <Field label="Категория"><select value={f.category_id ?? ''} onChange={(e) => setF({ ...f, category_id: e.target.value || null })}>
           <option value="">Без категории</option>{data!.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></Field>
-        <button className="btn primary" onClick={() => act('update_channel', { p_id: channel.id, p: f }, 'Канал сохранён')}>Сохранить</button>
+        <div className="row wrap">
+          <button className="btn primary" onClick={() => act('update_channel', { p_id: channel.id, p: f }, 'Канал сохранён')}>Сохранить</button>
+          <button className="btn danger" onClick={async () => {
+            if (!confirm(`Удалить канал «${channel.name}» вместе со всей историей? Это нельзя отменить.`)) return;
+            if ((await act('delete_channel', { p_id: channel.id }, 'Канал удалён')) !== undefined) onClose();
+          }}><Icon name="trash" size={14} /> Удалить канал</button>
+        </div>
         <h4>Права в канале</h4>
         <p className="muted small">Переопределения применяются поверх прав роли. Запрет «Просмотра» для роли «Участники» делает канал приватным.</p>
         <Field label="Роль"><select value={roleId} onChange={(e) => setRoleId(e.target.value)}>{assignable.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}</select></Field>

@@ -19,6 +19,8 @@ interface Peer {
   streams: Map<string, MediaStream>;
   meta: { camera: string | null; screen: string | null };
   pendingIce: RTCIceCandidateInit[];
+  /** Аудиоканал, согласованный один раз при соединении: микрофон включается/выключается через replaceTrack, без новых переговоров */
+  audioTx: RTCRtpTransceiver | null;
 }
 
 export class MeshCall implements CallEngine {
@@ -31,7 +33,8 @@ export class MeshCall implements CallEngine {
   private listeners = new Set<() => void>();
   private local: { mic: MediaStream | null; camera: MediaStream | null; screen: MediaStream | null } = { mic: null, camera: null, screen: null };
 
-  constructor(private sb: SupabaseClient, private channelId: string, private selfId: string, private ice: RTCIceServer[]) {}
+  // topic: «voice:<канал>» для комнат сообществ или «dmcall:<диалог>» для звонков другу
+  constructor(private sb: SupabaseClient, private topic: string, private selfId: string, private ice: RTCIceServer[]) {}
 
   onChange(cb: () => void) { this.listeners.add(cb); return () => { this.listeners.delete(cb); }; }
   private emit() { this.listeners.forEach((l) => l()); }
@@ -39,7 +42,7 @@ export class MeshCall implements CallEngine {
   async join() {
     this.state = 'connecting'; this.emit();
     await this.sb.realtime.setAuth();
-    const ch = this.sb.channel(`voice:${this.channelId}`, {
+    const ch = this.sb.channel(this.topic, {
       config: { private: true, broadcast: { self: false, ack: false }, presence: { key: this.selfId } },
     });
     this.ch = ch;
@@ -79,9 +82,9 @@ export class MeshCall implements CallEngine {
     if (existing) return existing;
     const pc = new RTCPeerConnection({ iceServers: this.ice });
     const peer: Peer = { pc, polite: this.selfId > id, makingOffer: false, ignoreOffer: false,
-      senders: { mic: [], camera: [], screen: [] }, streams: new Map(), meta: { camera: null, screen: null }, pendingIce: [] };
+      senders: { mic: [], camera: [], screen: [] }, streams: new Map(), meta: { camera: null, screen: null }, pendingIce: [], audioTx: null };
     this.peers.set(id, peer);
-    this.participants.set(id, { userId: id, audio: null, camera: null, screen: null, state: 'new' });
+    this.participants.set(id, { userId: id, audio: null, camera: null, screen: null, state: 'new', diag: null });
 
     pc.onicecandidate = ({ candidate }) => { if (candidate) this.send({ kind: 'ice', from: this.selfId, to: id, candidate: candidate.toJSON() }); };
     pc.onnegotiationneeded = async () => {
@@ -100,17 +103,44 @@ export class MeshCall implements CallEngine {
     };
     pc.onconnectionstatechange = () => {
       const p = this.participants.get(id); if (p) p.state = pc.connectionState;
-      if (pc.connectionState === 'failed') pc.restartIce();
+      if (pc.connectionState === 'connected' && p) p.diag = null;
+      if (pc.connectionState === 'failed') {
+        void this.diagnose(id);
+        // перезапуск ICE инициирует только одна сторона, чтобы не создавать встречных предложений
+        if (!peer.polite) pc.restartIce();
+      }
+      if (pc.connectionState === 'disconnected') {
+        setTimeout(() => { if (pc.connectionState === 'disconnected' && !peer.polite) pc.restartIce(); }, 4000);
+      }
       this.emit();
     };
-    // Нечувствительная сторона открывает канал данных, чтобы соединение установилось даже без медиа
-    if (!peer.polite) pc.createDataChannel('meta');
-    for (const kind of ['mic', 'camera', 'screen'] as const) {
+    // Нечувствительная сторона сразу открывает канал данных и двусторонний аудиоканал.
+    // Так соединение устанавливается даже без медиа, а включение микрофона потом не требует новых переговоров:
+    // раньше одновременное включение микрофонов двумя людьми иногда «съедало» звук одной стороны.
+    if (!peer.polite) {
+      pc.createDataChannel('meta');
+      const mic = this.local.mic?.getAudioTracks()[0];
+      peer.audioTx = mic ? pc.addTransceiver(mic, { direction: 'sendrecv', streams: [this.local.mic!] }) : pc.addTransceiver('audio', { direction: 'sendrecv' });
+    }
+    for (const kind of ['camera', 'screen'] as const) {
       const s = this.local[kind];
       if (s) s.getTracks().forEach((t) => peer.senders[kind].push(pc.addTrack(t, s)));
     }
     this.sendMeta();
     return peer;
+  }
+
+  // Почему не соединились: были ли у нас вообще ретрансляционные (TURN) кандидаты
+  private async diagnose(id: string) {
+    const peer = this.peers.get(id); const part = this.participants.get(id);
+    if (!peer || !part) return;
+    try {
+      const stats = await peer.pc.getStats();
+      let relay = false;
+      stats.forEach((r) => { if (r.type === 'local-candidate' && (r as { candidateType?: string }).candidateType === 'relay') relay = true; });
+      part.diag = relay ? 'relay_failed' : 'no_relay';
+    } catch { part.diag = 'no_relay'; }
+    this.emit();
   }
 
   private dropPeer(id: string) {
@@ -152,6 +182,16 @@ export class MeshCall implements CallEngine {
         await pc.setRemoteDescription(d);
         for (const c of peer.pendingIce.splice(0)) await pc.addIceCandidate(c).catch(() => {});
         if (d.type === 'offer') {
+          // вежливая сторона: делаем пришедший аудиоканал двусторонним и подставляем микрофон, если он уже включён
+          if (!peer.audioTx) {
+            const t = pc.getTransceivers().find((x) => x.receiver.track.kind === 'audio' && x.mid !== null && x.currentDirection !== 'stopped');
+            if (t) {
+              peer.audioTx = t;
+              t.direction = 'sendrecv';
+              const mic = this.local.mic?.getAudioTracks()[0];
+              if (mic) await t.sender.replaceTrack(mic);
+            }
+          }
           await pc.setLocalDescription();
           if (pc.localDescription) this.send({ kind: 'sdp', from: this.selfId, to: s.from, description: pc.localDescription.toJSON() });
         }
@@ -165,17 +205,37 @@ export class MeshCall implements CallEngine {
   private async setKind(kind: 'mic' | 'camera' | 'screen', stream: MediaStream | null) {
     const old = this.local[kind];
     this.local[kind] = stream;
+    if (kind === 'mic') {
+      // микрофон: только подмена дорожки в уже согласованном аудиоканале (у вежливой стороны до первого
+      // предложения канала ещё нет — тогда микрофон подставится при ответе, см. handle())
+      const track = stream?.getAudioTracks()[0] ?? null;
+      for (const peer of this.peers.values()) if (peer.audioTx) await peer.audioTx.sender.replaceTrack(track).catch((e) => console.warn('mic', e));
+      if (old && old !== stream) old.getTracks().forEach((t) => t.stop());
+      this.emit();
+      return;
+    }
     for (const peer of this.peers.values()) {
       const senders = peer.senders[kind];
       const tracks = stream?.getTracks() ?? [];
-      // для микрофона заменяем трек без перезапуска переговоров, если возможно
-      if (kind === 'mic' && senders.length === 1 && tracks.length === 1) { await senders[0].replaceTrack(tracks[0]); continue; }
       senders.forEach((sn) => { try { peer.pc.removeTrack(sn); } catch { /* уже закрыт */ } });
       peer.senders[kind] = stream ? tracks.map((t) => peer.pc.addTrack(t, stream)) : [];
     }
     if (old && old !== stream) old.getTracks().forEach((t) => t.stop());
     this.sendMeta();
     this.emit();
+  }
+
+  // Громкость входящего звука от каждого собеседника: браузер сам измеряет её по RTP (без Web Audio,
+  // который ненадёжно работает с входящими потоками WebRTC). Устаревшие (>1 с) значения считаем тишиной.
+  getLevels(): Map<string, number> {
+    const out = new Map<string, number>();
+    for (const [id, peer] of this.peers) {
+      const src = peer.audioTx?.receiver.getSynchronizationSources?.()[0];
+      // Chrome отдаёт timestamp по системным часам (эпоха), по спецификации — по performance.now(): учитываем оба
+      const age = !src ? Infinity : src.timestamp > 1e12 ? Date.now() - src.timestamp : performance.now() - src.timestamp;
+      out.set(id, src && age < 1000 ? src.audioLevel ?? 0 : 0);
+    }
+    return out;
   }
 
   setMic(s: MediaStream | null) { return this.setKind('mic', s); }

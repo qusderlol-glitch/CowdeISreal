@@ -12,6 +12,7 @@ import ChatView from '../components/ChatView';
 import VoiceView from '../components/VoiceView';
 import MemberList from '../components/MemberList';
 import CallDock from '../components/CallDock';
+import IncomingCall from '../components/IncomingCall';
 import CreateJoinModal from '../components/CreateJoinModal';
 import UserSettings from '../components/UserSettings';
 import CommunitySettings from '../components/CommunitySettings';
@@ -71,6 +72,7 @@ function Shell({ mode }: { mode: Mode }) {
           ) : <Home count={communities.length} onCreate={() => setModal('create')} />}
       </div>
       <CallDock />
+      <IncomingCall />
       {modal === 'create' && <CreateJoinModal onClose={() => setModal(null)} onDone={load} />}
       {modal === 'user' && <UserSettings onClose={() => setModal(null)} />}
     </div>
