@@ -32,11 +32,13 @@ function guard(what: 'mic' | 'camera' | 'screen') {
   if (what === 'screen' && !navigator.mediaDevices.getDisplayMedia) throw new MediaAccessError('unsupported', what);
 }
 
-export async function getMic(deviceId: string, opts: { noiseSuppression: boolean; echoCancellation: boolean }): Promise<MediaStream> {
+export interface MediaPrefs { noiseSuppression: unknown; echoCancellation: unknown; autoGain?: unknown; cameraQuality?: unknown; cameraFps?: unknown; screenFps?: unknown; screenAudio?: unknown }
+
+export async function getMic(deviceId: string, opts: MediaPrefs): Promise<MediaStream> {
   guard('mic');
   try {
     return await navigator.mediaDevices.getUserMedia({
-      audio: { deviceId: deviceId ? { exact: deviceId } : undefined, noiseSuppression: opts.noiseSuppression, echoCancellation: opts.echoCancellation, autoGainControl: true },
+      audio: { deviceId: deviceId ? { exact: deviceId } : undefined, noiseSuppression: Boolean(opts.noiseSuppression), echoCancellation: Boolean(opts.echoCancellation), autoGainControl: opts.autoGain !== false },
     });
   } catch (e) {
     if (deviceId && (e as { name?: string }).name === 'OverconstrainedError') return getMic('', opts);
@@ -44,23 +46,25 @@ export async function getMic(deviceId: string, opts: { noiseSuppression: boolean
   }
 }
 
-export async function getCamera(deviceId: string): Promise<MediaStream> {
+export async function getCamera(deviceId: string, opts: MediaPrefs = { noiseSuppression: true, echoCancellation: true }): Promise<MediaStream> {
   guard('camera');
   const mobile = window.matchMedia('(max-width: 700px)').matches;
+  const h = Math.min(Number(opts.cameraQuality) || 720, mobile ? 480 : 1080); const fps = Number(opts.cameraFps) || 24;
   try {
     return await navigator.mediaDevices.getUserMedia({
-      video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: mobile ? 640 : 1280 }, height: { ideal: mobile ? 480 : 720 }, frameRate: { ideal: 24, max: 30 } },
+      video: { deviceId: deviceId ? { exact: deviceId } : undefined, width: { ideal: Math.round(h * 16 / 9) }, height: { ideal: h }, frameRate: { ideal: fps, max: 30 } },
     });
   } catch (e) {
-    if (deviceId && (e as { name?: string }).name === 'OverconstrainedError') return getCamera('');
+    if (deviceId && (e as { name?: string }).name === 'OverconstrainedError') return getCamera('', opts);
     throw new MediaAccessError(classify(e), 'camera');
   }
 }
 
-export async function getScreen(): Promise<MediaStream> {
+export async function getScreen(opts: MediaPrefs = { noiseSuppression: true, echoCancellation: true }): Promise<MediaStream> {
   guard('screen');
   try {
-    return await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: 15, max: 30 } }, audio: true });
+    const fps = Number(opts.screenFps) || 15;
+    return await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: fps, max: 30 } }, audio: opts.screenAudio !== false });
   } catch (e) {
     throw new MediaAccessError(classify(e) === 'denied' ? 'not_found' : classify(e), 'screen');
   }
@@ -81,7 +85,7 @@ export const canShareScreen = typeof navigator !== 'undefined' && !!navigator.me
 
 // Простой индикатор уровня громкости (для «говорит» и проверки микрофона)
 let ctx: AudioContext | null = null;
-export function levelMeter(stream: MediaStream, cb: (level: number) => void): () => void {
+export function levelMeter(stream: MediaStream, cb: (level: number) => void): () => void { // порог речи задаёт вызывающий код
   if (!stream.getAudioTracks().length) return () => {};
   ctx ??= new AudioContext();
   const src = ctx.createMediaStreamSource(stream);

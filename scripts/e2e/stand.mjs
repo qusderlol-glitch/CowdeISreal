@@ -209,16 +209,17 @@ export class Stand {
         const list = Array.isArray(body) ? body : [body];
         for (const row of list) {
           const keys = Object.keys(row).map((k) => k.replace(/[^\w]/g, ''));
-          const p = keys.map((k) => (row[k] !== null && typeof row[k] === 'object' ? JSON.stringify(row[k]) : row[k]));
+          const p = keys.map((k) => (row[k] !== null && typeof row[k] === 'object' && !Array.isArray(row[k]) ? JSON.stringify(row[k]) : row[k]));
           await c.query(`insert into public.${t} (${keys.join(', ')}) values (${keys.map((_, i) => `$${i + 1}`).join(', ')})`, p);
         }
         return [201, null];
       }
       if (method === 'PATCH') {
         const keys = Object.keys(body).map((k) => k.replace(/[^\w]/g, ''));
-        const sets = keys.map((k) => `${k} = $${params.push(body[k] !== null && typeof body[k] === 'object' ? JSON.stringify(body[k]) : body[k])}`);
-        await c.query(`update public.${t} t0 set ${sets.join(', ')} ${where}`, params);
-        return [204, null];
+        const sets = keys.map((k) => `${k} = $${params.push(body[k] !== null && typeof body[k] === 'object' && !Array.isArray(body[k]) ? JSON.stringify(body[k]) : body[k])}`);
+        const ret = (headers['prefer'] || '').includes('return=representation');
+        const r = await c.query(`update public.${t} t0 set ${sets.join(', ')} ${where}${ret ? ' returning to_jsonb(t0) v' : ''}`, params);
+        return ret ? [200, r.rows.map((x) => x.v)] : [204, null];
       }
       if (method === 'DELETE') { await c.query(`delete from public.${t} t0 ${where}`, params); return [204, null]; }
       return [405, { message: 'stand: method not allowed' }];

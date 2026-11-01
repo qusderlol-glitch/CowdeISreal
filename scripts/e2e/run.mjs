@@ -207,6 +207,70 @@ try {
   await r.waitForURL(/\/app/);
   ok('сброс пароля кодом из письма → новый пароль → вход');
 
+  // 6. Друзья: поиск с опечаткой, заявка, принятие, личные сообщения
+  await a.goto(`${BASE}/app/friends`);
+  await a.getByLabel('Поиск людей').fill('bbo');
+  await expectText(a, 'Возможно, вы имели в виду');
+  await a.locator('.search-results li', { hasText: '@bob' }).getByRole('button', { name: /Добавить/ }).click();
+  await expectText(a, 'Заявка отправлена');
+  ok('поиск с опечаткой «bbo» подсказал @bob, заявка отправлена');
+  await b.goto(`${BASE}/app/friends`);
+  await b.getByRole('tab', { name: /Заявки/ }).click();
+  await b.locator('.people-list li', { hasText: 'Алиса' }).getByRole('button', { name: 'Принять' }).click();
+  await expectText(b, 'Теперь вы друзья');
+  await b.getByRole('tab', { name: /Друзья/ }).click();
+  await b.getByRole('button', { name: 'Написать Алиса' }).click();
+  await b.waitForURL(/\/app\/friends\/[0-9a-f-]{36}$/);
+  await b.getByLabel('Текст личного сообщения').fill('Привет в личке!');
+  await b.getByLabel('Текст личного сообщения').press('Enter');
+  await b.locator('.main .msg.mine .msg-text', { hasText: 'Привет в личке!' }).waitFor();
+  if (await b.getByText('Не отправлено').count()) throw new Error('dm failed');
+  ok('заявка принята вручную, друзья переписываются в личных сообщениях');
+  await a.goto(`${BASE}/app/friends`);
+  await a.locator('.threads li', { hasText: 'Боб' }).locator('.badge').waitFor();
+  await a.locator('.threads li', { hasText: 'Боб' }).getByRole('button').first().click();
+  await a.locator('.main .msg .msg-text', { hasText: 'Привет в личке!' }).waitFor();
+  await a.waitForTimeout(400); // дождаться анимации появления перед скриншотом
+  await a.screenshot({ path: `${SHOTS}/08-friends-dm.png` });
+  ok('у получателя счётчик непрочитанного и диалог');
+
+  // 7. Знакомства: только по согласию, свайп = заявка
+  await a.goto(`${BASE}/app/discover`);
+  await expectText(a, 'Это поиск друзей, а не свиданий');
+  await a.getByLabel(/О себе для ленты/).fill('Люблю настолки и созвоны');
+  await a.getByPlaceholder('Добавить и Enter').fill('настолки'); await a.getByPlaceholder('Добавить и Enter').press('Enter');
+  await a.getByRole('button', { name: 'Сохранить и смотреть ленту' }).click();
+  await expectText(a, 'Пока никого нового');
+  await c.goto(`${BASE}/app/discover`);
+  await c.getByPlaceholder('Добавить и Enter').fill('Настолки'); await c.getByPlaceholder('Добавить и Enter').press('Enter');
+  await c.getByRole('button', { name: 'Сохранить и смотреть ленту' }).click();
+  await expectText(c, 'Люблю настолки и созвоны');
+  await expectText(c, 'Общих интересов: 1');
+  await c.screenshot({ path: `${SHOTS}/09-discover.png` });
+  await c.getByRole('button', { name: /Добавить в друзья/ }).click();
+  await expectText(c, 'Дружба начнётся, когда Алиса её примет');
+  ok('лента видна только включившим анкету; общие интересы; свайп вправо = заявка, а не дружба');
+  await a.goto(`${BASE}/app/friends`);
+  await a.getByRole('tab', { name: /Заявки/ }).click();
+  await expectText(a, 'из знакомств');
+  ok('заявка из знакомств ждёт подтверждения у адресата');
+
+  // 8. Кастомизация: 176 настроек, поиск, применение
+  await a.getByRole('button', { name: 'Настройки пользователя' }).click();
+  await a.getByRole('button', { name: /Кастомизация · \d+/ }).click();
+  await a.getByLabel('Поиск настроек').fill('пузыр');
+  await a.locator('.setting-row', { hasText: 'Стиль пузырей' }).locator('select').selectOption('cloud');
+  await a.getByLabel('Поиск настроек').fill('');
+  await a.locator('.setting-row', { hasText: /^Тема/ }).locator('select').selectOption('ocean');
+  const attrs = await a.evaluate(() => [document.documentElement.dataset.bubble, document.documentElement.dataset.theme]);
+  if (attrs[0] !== 'cloud' || attrs[1] !== 'ocean') throw new Error(`settings not applied: ${attrs}`);
+  await a.getByRole('button', { name: 'Оформление профиля' }).click();
+  await a.getByLabel('Рамка аватара').selectOption('leaf');
+  await a.getByRole('button', { name: 'Сохранить оформление' }).click();
+  await expectText(a, 'Оформление сохранено');
+  await a.screenshot({ path: `${SHOTS}/10-customize.png` });
+  ok('кастомизация применяется сразу (тема «Океан», пузыри «Облачко»), оформление профиля сохраняется');
+
   // 5. Неверный (старый) пароль
   const w = await ctx();
   await w.goto(`${BASE}/login`);

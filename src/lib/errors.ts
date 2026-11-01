@@ -41,6 +41,13 @@ const MESSAGES: Record<string, string> = {
   too_many_reactions: 'Слишком много разных реакций.',
   invalid_emoji: 'Некорректная реакция.',
   invalid_path: 'Некорректный путь файла.',
+  invalid_target: 'Нельзя выполнить это действие с самим собой.',
+  requests_closed: 'Этот человек не принимает заявки в друзья.',
+  requests_mutual_only: 'Этот человек принимает заявки только от тех, с кем есть общие друзья или сообщества.',
+  try_later: 'Этот человек недавно отклонил заявку. Повторить можно позже.',
+  friends_only: 'Писать можно только друзьям.',
+  dms_closed: 'Этот человек закрыл личные сообщения.',
+  discovery_disabled: 'Сначала включите свою анкету в «Знакомствах».',
 };
 
 export function humanError(err: unknown): string {

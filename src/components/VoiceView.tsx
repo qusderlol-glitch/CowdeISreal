@@ -16,7 +16,7 @@ function Video({ stream, mirror, label }: { stream: MediaStream; mirror?: boolea
 
 export default function VoiceView({ channel }: { channel: Channel }) {
   const { data, displayName, memberById } = useCommunity();
-  const { uid, profile } = useSession();
+  const { uid, profile, settings } = useSession();
   const call = useCall();
   const perms = data?.channelPerms.get(channel.id) ?? 0;
   const here = call.channelId === channel.id && call.status !== 'failed';
@@ -60,7 +60,7 @@ export default function VoiceView({ channel }: { channel: Channel }) {
       ))}</div>}
       <div className="stage">
         <figure className={`tile ${call.speaking.has(uid!) ? 'speaking' : ''}`}>
-          {call.camera ? <Video stream={call.camera} mirror label="Ваша камера" /> : <Avatar name={profile?.display_name ?? 'Вы'} path={profile?.avatar_path} size={88} />}
+          {call.camera ? <Video stream={call.camera} mirror={Boolean(settings.mirrorCamera)} label="Ваша камера" /> : <Avatar name={profile?.display_name ?? 'Вы'} path={profile?.avatar_path} size={88} />}
           <figcaption>{profile?.display_name} (вы) {!call.mic && <Icon name="micOff" size={14} title="Микрофон выключен" />}</figcaption>
         </figure>
         {remote.map((p) => {
@@ -76,7 +76,7 @@ export default function VoiceView({ channel }: { channel: Channel }) {
               </figcaption>
               <label className="vol" title="Громкость участника">
                 <Icon name="speaker" size={14} />
-                <input type="range" min={0} max={1} step={0.05} value={call.volumes[p.userId] ?? 1} onChange={(e) => call.setVolume(p.userId, Number(e.target.value))} aria-label={`Громкость ${displayName(p.userId)}`} />
+                <input type="range" min={0} max={1} step={0.05} value={call.volumes[p.userId] ?? Number(settings.defaultVolume ?? 1)} onChange={(e) => call.setVolume(p.userId, Number(e.target.value))} aria-label={`Громкость ${displayName(p.userId)}`} />
               </label>
             </figure>
           );

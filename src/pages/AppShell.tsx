@@ -17,16 +17,27 @@ import UserSettings from '../components/UserSettings';
 import CommunitySettings from '../components/CommunitySettings';
 import Leaderboard from '../components/Leaderboard';
 import { BRAND } from '../lib/brand';
+import FriendsView from '../components/FriendsView';
+import DiscoverView from '../components/DiscoverView';
 
 export type Panel = 'nav' | 'main';
 
-export default function AppShell() {
-  return <UnreadProvider><Shell /></UnreadProvider>;
+export type Mode = 'community' | 'friends' | 'discover';
+
+export default function AppShell({ mode = 'community' }: { mode?: Mode }) {
+  return <UnreadProvider><Shell mode={mode} /></UnreadProvider>;
 }
 
-function Shell() {
-  const { cid, chid } = useParams();
-  const { uid, online } = useSession();
+function Shell({ mode }: { mode: Mode }) {
+  const { cid, chid, threadId } = useParams();
+  const { uid, online, settings } = useSession();
+  const navTo = useNavigate();
+  // стартовая страница: только при заходе на /app без сообщества
+  useEffect(() => {
+    if (cid || mode !== 'community') return;
+    if (settings.startPage === 'friends') navTo('/app/friends', { replace: true });
+    else if (settings.startPage === 'last') { const last = localStorage.getItem('cowdeisreal.lastCommunity'); if (last) navTo(`/app/${last}`, { replace: true }); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [communities, setCommunities] = useState<Community[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [modal, setModal] = useState<null | 'create' | 'user'>(null);
@@ -42,14 +53,16 @@ function Shell() {
     const ch = supabase.channel(`mine:${uid}`).on('postgres_changes', { event: '*', schema: 'public', table: 'community_members', filter: `user_id=eq.${uid}` }, () => void load()).subscribe();
     return () => { void supabase.removeChannel(ch); };
   }, [uid, load]);
-  useEffect(() => { if (chid) setPanel('main'); }, [chid]);
+  useEffect(() => { if (chid || threadId || mode === 'discover') setPanel('main'); else if (mode === 'friends') setPanel('nav'); }, [chid, threadId, mode]);
 
   return (
-    <div className="app" data-panel={panel}>
+    <div className="app" data-panel={panel} data-mode={mode}>
       {!online && <div className="offline-bar"><Icon name="wifiOff" size={16} /> Нет сети. Сообщения не отправятся, пока соединение не восстановится.</div>}
-      <TopBar communities={communities ?? []} active={cid} onAdd={() => setModal('create')} onUser={() => setModal('user')} />
+      <TopBar communities={communities ?? []} active={cid} mode={mode} onAdd={() => setModal('create')} onUser={() => setModal('user')} />
       <div className="workspace">
-        {err && !communities ? <main className="main"><ErrorBox error={err} onRetry={load} /></main>
+        {mode === 'friends' ? <FriendsView threadId={threadId} />
+          : mode === 'discover' ? <DiscoverView />
+          : err && !communities ? <main className="main"><ErrorBox error={err} onRetry={load} /></main>
           : !communities ? <main className="main"><Spinner /></main>
           : cid ? (
             <CommunityProvider key={cid} cid={cid}>
@@ -80,6 +93,7 @@ function Home({ count, onCreate }: { count: number; onCreate: () => void }) {
 function CommunityLayout({ chid, setPanel }: { chid?: string; setPanel: (p: Panel) => void }) {
   const { data, error, loading, reload } = useCommunity();
   const { setActive, refresh } = useUnread();
+  const { settings: s } = useSession();
   const nav = useNavigate();
   const [modal, setModal] = useState<null | 'settings' | 'ranks'>(null);
   const [people, setPeople] = useState(false);
@@ -87,10 +101,24 @@ function CommunityLayout({ chid, setPanel }: { chid?: string; setPanel: (p: Pane
   const channel = data?.channels.find((c) => c.id === chid) ?? null;
   useEffect(() => {
     if (data && !chid) {
-      const first = data.channels.find((c) => c.kind !== 'voice');
-      if (first) nav(`/app/${data.community.id}/${first.id}`, { replace: true });
+      const last = s.rememberLastRoom ? localStorage.getItem(`cowdeisreal.lastRoom:${data.community.id}`) : null;
+      const target = data.channels.find((c) => c.id === last && c.kind !== 'voice') ?? data.channels.find((c) => c.kind !== 'voice');
+      if (target) nav(`/app/${data.community.id}/${target.id}`, { replace: true });
     }
-  }, [data, chid, nav]);
+    if (data && chid) localStorage.setItem('cowdeisreal.lastCommunity', data.community.id);
+  }, [data, chid, nav, s.rememberLastRoom]);
+  // Alt+↑/↓ — соседняя текстовая комната
+  useEffect(() => {
+    if (!s.keyboardShortcuts || !data) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (!e.altKey || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+      const list = data.channels.filter((c) => c.kind !== 'voice');
+      const i = list.findIndex((c) => c.id === chid);
+      const next = list[(i + (e.key === 'ArrowDown' ? 1 : -1) + list.length) % list.length];
+      if (next) { e.preventDefault(); nav(`/app/${data.community.id}/${next.id}`); }
+    };
+    window.addEventListener('keydown', onKey); return () => window.removeEventListener('keydown', onKey);
+  }, [s.keyboardShortcuts, data, chid, nav]);
   useEffect(() => { setActive(channel?.id ?? null); refresh(); return () => setActive(null); }, [channel?.id, setActive, refresh]);
 
   if (loading && !data) return <main className="main"><Spinner /></main>;

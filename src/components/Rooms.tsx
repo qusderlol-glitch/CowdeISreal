@@ -19,20 +19,23 @@ const MANAGE_ANY = PERM.MANAGE_CHANNELS | PERM.MANAGE_ROLES | PERM.MANAGE_MEMBER
 export default function Rooms({ activeChannel, onOpenSettings, onOpenRanks, onOpenPeople, onPick }:
   { activeChannel?: string; onOpenSettings: () => void; onOpenRanks: () => void; onOpenPeople: () => void; onPick: () => void }) {
   const { data, displayName, memberById, online } = useCommunity();
-  const { uid } = useSession();
+  const { uid, settings: s } = useSession();
   const { byChannel } = useUnread();
   const call = useCall();
   const toast = useToast();
   const nav = useNavigate();
   const [invite, setInvite] = useState(false);
   const [favs, setFavs] = useState<Set<string>>(new Set());
-  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [collapsed, setCollapsed] = useState<Set<string>>(() => new Set(s.collapseCategories ? (data?.categories ?? []).map((c) => c.id) : []));
 
   useEffect(() => {
     q<{ channel_id: string }[]>(supabase.from('channel_favorites').select('channel_id')).then((r) => setFavs(new Set(r.map((x) => x.channel_id)))).catch(() => {});
   }, []);
   if (!data) return null;
-  const { community, categories, channels, perms, voice } = data;
+  const { community, categories, perms, voice } = data;
+  const channels = s.roomSort === 'alpha' ? [...data.channels].sort((a, b) => a.name.localeCompare(b.name, 'ru'))
+    : s.roomSort === 'unread' ? [...data.channels].sort((a, b) => (byChannel.get(b.id)?.unread ?? 0) - (byChannel.get(a.id)?.unread ?? 0) || a.position - b.position)
+    : data.channels;
   const icon = publicMediaUrl(community.icon_path);
 
   const leave = async () => {
@@ -44,7 +47,7 @@ export default function Rooms({ activeChannel, onOpenSettings, onOpenRanks, onOp
   const room = (c: Channel) => {
     const u = byChannel.get(c.id);
     const inRoom = voice.filter((v) => v.channel_id === c.id);
-    const onClick = () => { onPick(); if (c.kind === 'voice' && call.channelId !== c.id && has(data.channelPerms.get(c.id), PERM.CONNECT_VOICE)) void call.join(c); };
+    const onClick = () => { onPick(); if (s.rememberLastRoom) localStorage.setItem(`cowdeisreal.lastRoom:${community.id}`, c.id); if (c.kind === 'voice' && call.channelId !== c.id && has(data.channelPerms.get(c.id), PERM.CONNECT_VOICE)) void call.join(c); };
     return (
       <li key={c.id}>
         <Link to={`/app/${community.id}/${c.id}`} onClick={onClick}
@@ -79,7 +82,7 @@ export default function Rooms({ activeChannel, onOpenSettings, onOpenRanks, onOp
       <section className="community-card" style={{ ['--c' as string]: community.accent_color }}>
         <div className="community-id">
           <span className="community-icon">{icon ? <img src={icon} alt="" /> : community.name.slice(0, 1).toUpperCase()}</span>
-          <div><h2>{community.name}</h2><small>{data.members.length} участн. · {online.size} в сети</small></div>
+          <div><h2>{community.name}</h2><small>{data.members.length} участн.<span className="online-count"> · {online.size} в сети</span></small></div>
         </div>
         {community.description && <p className="community-desc">{community.description}</p>}
         <div className="community-actions">
@@ -91,7 +94,7 @@ export default function Rooms({ activeChannel, onOpenSettings, onOpenRanks, onOp
         </div>
       </section>
       <div className="rooms-scroll">
-        {favChannels.length > 0 && <section><h3 className="group">★ Избранное</h3><ul>{favChannels.map(room)}</ul></section>}
+        {s.favoritesSection && favChannels.length > 0 && <section><h3 className="group">★ Избранное</h3><ul>{favChannels.map(room)}</ul></section>}
         {uncategorized.length > 0 && <ul>{uncategorized.map(room)}</ul>}
         {categories.map((cat) => {
           const list = channels.filter((c) => c.category_id === cat.id);

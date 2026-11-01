@@ -44,7 +44,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     ]);
     setProfile(p); setPriv(pp);
     if (pp.settings && Object.keys(pp.settings).length) {
-      const merged = { ...DEFAULT_SETTINGS, ...pp.settings };
+      const merged = { ...DEFAULT_SETTINGS, ...pp.settings } as UserSettings;
       setLocal(merged); saveLocalSettings(merged);
     }
   }, [uid]);
@@ -53,7 +53,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
 
   const setSettings = useCallback((patch: Partial<UserSettings>) => {
     setLocal((cur) => {
-      const next = { ...cur, ...patch };
+      const next = { ...cur, ...patch } as UserSettings;
       saveLocalSettings(next);
       window.clearTimeout(saveTimer.current);
       if (uid) saveTimer.current = window.setTimeout(() => {

@@ -5,6 +5,7 @@ import { BASE } from './lib/brand';
 import { SessionProvider, useSession } from './state/session';
 import { ToastProvider } from './state/toast';
 import { CallProvider } from './state/call';
+import { SocialProvider } from './state/social';
 import { Spinner } from './components/ui';
 import SetupPage from './pages/SetupPage';
 import AuthPage from './pages/AuthPage';
@@ -25,17 +26,21 @@ export default function App() {
   return (
     <ToastProvider>
       <SessionProvider>
+        <SocialProvider>
         <CallProvider>
           <BrowserRouter basename={BASE || undefined}>
             <Routes>
               <Route path="/login" element={<AuthPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/invite/:code" element={<Gate><InvitePage /></Gate>} />
+              <Route path="/app/friends/:threadId?" element={<Gate><AppShell mode="friends" /></Gate>} />
+              <Route path="/app/discover" element={<Gate><AppShell mode="discover" /></Gate>} />
               <Route path="/app/:cid?/:chid?" element={<Gate><AppShell /></Gate>} />
               <Route path="*" element={<Navigate to="/app" replace />} />
             </Routes>
           </BrowserRouter>
         </CallProvider>
+        </SocialProvider>
       </SessionProvider>
     </ToastProvider>
   );

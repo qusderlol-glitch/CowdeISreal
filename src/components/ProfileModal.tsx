@@ -4,11 +4,15 @@ import { has, PERM } from '../lib/permissions';
 import { levelProgress } from '../lib/xp';
 import { useCommunity } from '../state/community';
 import { BRAND } from '../lib/brand';
+import { useNavigate } from 'react-router-dom';
+import { q, supabase } from '../lib/supabase';
+import ProfileBanner from './ProfileBanner';
+import type { ProfileStyle, Relation } from '../lib/types';
 import { useSession } from '../state/session';
 import { useToast } from '../state/toast';
-import { Avatar, ErrorBox, Field, Icon, Modal, Spinner } from './ui';
+import { ErrorBox, Field, Icon, Modal, Spinner } from './ui';
 
-interface Card { id: string; handle: string; display_name: string; avatar_path: string | null; bio?: string; status_text?: string; presence?: string; timezone?: string; created_at?: string }
+interface Card extends Partial<ProfileStyle> { id: string; handle: string; display_name: string; avatar_path: string | null; bio?: string; status_text?: string; presence?: string; timezone?: string; created_at?: string; relation?: Relation }
 const PRESENCE: Record<string, string> = { online: 'В сети', idle: 'Отошёл', dnd: 'Не беспокоить', invisible: 'Невидимка', offline: 'Не в сети' };
 
 export default function ProfileModal({ userId, onClose }: { userId: string; onClose: () => void }) {
@@ -20,6 +24,9 @@ export default function ProfileModal({ userId, onClose }: { userId: string; onCl
   const [reason, setReason] = useState('');
   const [xpDelta, setXpDelta] = useState(0);
   const [nick, setNick] = useState('');
+  const navTo = useNavigate();
+  const reloadCard = () => rpc<Card>('get_profile_card', { p_user: userId }).then(setCard).catch(() => {});
+  const friendAct = async (fn: string, args: Record<string, unknown>, ok: string) => { try { await rpc(fn, args); toast.push(ok, 'ok'); await reloadCard(); } catch (e) { toast.fail(e); } };
   useEffect(() => { rpc<Card>('get_profile_card', { p_user: userId }).then(setCard).catch((e) => setErr(e.message)); }, [userId]);
   const m = memberById(userId);
   useEffect(() => { setNick(m?.nickname ?? ''); }, [m?.nickname]);
@@ -38,13 +45,17 @@ export default function ProfileModal({ userId, onClose }: { userId: string; onCl
     <Modal title="Профиль" onClose={onClose} wide>
       {err ? <ErrorBox error={err} /> : !card ? <Spinner /> : (
         <div className="profile">
-          <div className="profile-head">
-            <Avatar name={card.display_name} path={card.avatar_path} size={80} />
-            <div>
-              <h3>{m?.nickname || card.display_name} {isOwner && <Icon name="crown" size={16} title="Владелец" />}</h3>
-              <div className="muted">@{card.handle}{m?.nickname ? ` · ${card.display_name}` : ''}</div>
-              {card.presence && <div className={`presence p-${card.presence}`}>● {PRESENCE[card.presence] ?? card.presence}{card.status_text ? ` — ${card.status_text}` : ''}</div>}
-            </div>
+          <ProfileBanner p={{ ...card, display_name: m?.nickname || card.display_name }} />
+          <div className="row wrap">
+            {isOwner && <span className="pill"><Icon name="crown" size={12} /> владелец</span>}
+            {card.presence && <span className={`presence p-${card.presence}`}>● {PRESENCE[card.presence] ?? card.presence}{card.status_text ? ` — ${card.status_text}` : ''}</span>}
+            {card.relation === 'none' && <button className="btn small primary" onClick={() => friendAct('send_friend_request', { p_user: userId, p_source: 'profile' }, 'Заявка отправлена')}><Icon name="userPlus" size={14} /> В друзья</button>}
+            {card.relation === 'outgoing' && <span className="pill">заявка отправлена</span>}
+            {card.relation === 'incoming' && <button className="btn small primary" onClick={async () => {
+              const r = await q<{ id: number }[]>(supabase.from('friend_requests').select('id').eq('from_id', userId).eq('status', 'pending')).catch(() => []);
+              if (r[0]) await friendAct('respond_friend_request', { p_id: r[0].id, p_accept: true }, 'Теперь вы друзья');
+            }}><Icon name="check" size={14} /> Принять заявку</button>}
+            {card.relation === 'friend' && <button className="btn small" onClick={async () => { try { const id = await rpc<string>('open_dm', { p_user: userId }); onClose(); navTo(`/app/friends/${id}`); } catch (e) { toast.fail(e); } }}><Icon name="chat" size={14} /> Написать</button>}
           </div>
           {card.bio && <p className="bio">{card.bio}</p>}
           <dl className="facts">

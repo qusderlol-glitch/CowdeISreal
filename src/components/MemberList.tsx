@@ -1,19 +1,22 @@
 import { useState } from 'react';
 import { useCommunity, type MemberView } from '../state/community';
+import { useSession } from '../state/session';
 import { levelFromXp } from '../lib/xp';
 import { Avatar, Icon } from './ui';
 import ProfileModal from './ProfileModal';
 
 export default function MemberList({ onClose }: { onClose: () => void }) {
   const { data, online } = useCommunity();
+  const { settings: s } = useSession();
   const [open, setOpen] = useState<string | null>(null);
   if (!data) return null;
   const groups = new Map<string, { title: string; color?: string; items: MemberView[] }>();
   const sorted = [...data.members].sort((a, b) => (b.top?.position ?? 0) - (a.top?.position ?? 0) || (a.nickname || a.profile.display_name).localeCompare(b.nickname || b.profile.display_name));
   for (const m of sorted) {
     const isOnline = online.has(m.user_id);
-    const key = !isOnline ? 'offline' : m.top?.id ?? 'online';
-    if (!groups.has(key)) groups.set(key, { title: !isOnline ? 'Не в сети' : m.top?.name ?? 'В сети', color: isOnline ? m.top?.color : undefined, items: [] });
+    if (!isOnline && !s.showOffline) continue;
+    const key = !isOnline ? 'offline' : s.groupByRole ? m.top?.id ?? 'online' : 'online';
+    if (!groups.has(key)) groups.set(key, { title: !isOnline ? 'Не в сети' : s.groupByRole ? m.top?.name ?? 'В сети' : 'В сети', color: isOnline ? m.top?.color : undefined, items: [] });
     groups.get(key)!.items.push(m);
   }
   const ordered = [...groups.entries()].sort(([a], [b]) => (a === 'offline' ? 1 : 0) - (b === 'offline' ? 1 : 0));
@@ -31,8 +34,8 @@ export default function MemberList({ onClose }: { onClose: () => void }) {
                 <Avatar name={m.profile.display_name} path={m.profile.avatar_path} size={32} ring={online.has(m.user_id) ? 'online' : null} />
                 <span className="member-name" style={{ color: m.top?.color }}>{m.nickname || m.profile.display_name}</span>
                 {data.community.owner_id === m.user_id && <Icon name="crown" size={14} title="Владелец" />}
-                {data.community.xp_enabled && <small className="lvl" title={`${m.xp} XP`}>ур. {levelFromXp(m.xp)}</small>}
-                {m.tagIds.slice(0, 2).map((t) => { const tag = data.tags.find((x) => x.id === t); return tag && <span key={t} className="tag-dot" style={{ background: tag.color }} title={tag.name} />; })}
+                {data.community.xp_enabled && s.memberLevels && <small className="lvl" title={`${m.xp} XP`}>ур. {levelFromXp(m.xp)}</small>}
+                {s.memberTags && m.tagIds.slice(0, 2).map((t) => { const tag = data.tags.find((x) => x.id === t); return tag && <span key={t} className="tag-dot" style={{ background: tag.color }} title={tag.name} />; })}
               </button>
             </li>
           ))}</ul>

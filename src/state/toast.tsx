@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useState, type ReactNode } from 'react';
 import { humanError } from '../lib/errors';
+import { loadLocalSettings } from '../lib/settings';
 
 type Kind = 'info' | 'error' | 'ok';
 interface Toast { id: number; text: string; kind: Kind }
@@ -10,7 +11,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const push = useCallback((text: string, kind: Kind = 'info') => {
     const id = Date.now() + Math.random();
     setItems((x) => [...x.slice(-3), { id, text, kind }]);
-    setTimeout(() => setItems((x) => x.filter((t) => t.id !== id)), kind === 'error' ? 6000 : 3500);
+    const base = Number(loadLocalSettings().toastSeconds) * 1000 || 4000;
+    setTimeout(() => setItems((x) => x.filter((t) => t.id !== id)), kind === 'error' ? base + 2500 : base);
   }, []);
   const fail = useCallback((e: unknown) => push(e instanceof Error ? e.message : humanError(e), 'error'), [push]);
   return (

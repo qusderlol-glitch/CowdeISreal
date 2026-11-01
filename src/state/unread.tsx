@@ -2,18 +2,11 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState, ty
 import { rpc, supabase } from '../lib/supabase';
 import type { Message } from '../lib/types';
 import { useSession } from './session';
+import { inQuietHours, playSound } from '../lib/sound';
 
 interface Row { channel_id: string; community_id: string; unread: number; mentions: number }
 interface Ctx { byChannel: Map<string, Row>; byCommunity: Map<string, { unread: number; mentions: number }>; refresh: () => void; setActive: (ch: string | null) => void }
 const UnreadCtx = createContext<Ctx>(null as unknown as Ctx);
-
-function beep() {
-  try {
-    const ac = new AudioContext(); const o = ac.createOscillator(); const g = ac.createGain();
-    o.frequency.value = 660; g.gain.value = 0.04; o.connect(g); g.connect(ac.destination);
-    o.start(); o.stop(ac.currentTime + 0.12); o.onended = () => void ac.close();
-  } catch { /* звук недоступен */ }
-}
 
 export function UnreadProvider({ children }: { children: ReactNode }) {
   const { uid, settings } = useSession();
@@ -21,6 +14,7 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
   const active = useRef<string | null>(null);
   const timer = useRef(0);
   const settingsRef = useRef(settings); settingsRef.current = settings;
+  const flash = useRef(0);
 
   const refresh = useCallback(() => {
     window.clearTimeout(timer.current);
@@ -36,11 +30,15 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
       refresh();
       const s = settingsRef.current;
       const mentioned = msg.mentions?.includes(uid);
-      const visible = !document.hidden && active.current === msg.channel_id;
-      if (visible || (s.notifyMentionsOnly && !mentioned)) return;
-      if (s.notifySound) beep();
+      const viewing = !document.hidden && active.current === msg.channel_id;
+      if (viewing) return;
+      if (!document.hidden && !s.notifyWhenFocused) { if (mentioned) playSound(s); return; }
+      if (s.notifyMentionsOnly && !mentioned) return;
+      if (inQuietHours(s)) return;
+      playSound(s);
+      if (mentioned && s.flashTitle && document.hidden) flash.current = 6;
       if (s.notifyDesktop && 'Notification' in window && Notification.permission === 'granted') {
-        new Notification(mentioned ? 'Вас упомянули' : 'Новое сообщение', { body: msg.content.slice(0, 140) || 'Вложение', tag: String(msg.channel_id) });
+        new Notification(mentioned ? 'Вас упомянули' : 'Новое сообщение', { body: s.notificationPreview ? msg.content.slice(0, 140) || 'Вложение' : 'Откройте приложение, чтобы прочитать', tag: String(msg.channel_id) });
       }
     }).subscribe();
     return () => { void supabase.removeChannel(ch); };
@@ -54,6 +52,18 @@ export function UnreadProvider({ children }: { children: ReactNode }) {
     c.unread += r.unread; c.mentions += r.mentions; byCommunity.set(r.community_id, c);
   }
   const setActive = useCallback((id: string | null) => { active.current = id; }, []);
+  // счётчик непрочитанного во вкладке браузера и мигание при упоминании
+  const totalUnread = rows.reduce((n, r) => n + (r.channel_id === active.current ? 0 : r.unread), 0);
+  useEffect(() => {
+    const base = 'CowdeISreal';
+    const iv = window.setInterval(() => {
+      const st = settingsRef.current;
+      if (flash.current > 0 && document.hidden) { flash.current--; document.title = flash.current % 2 ? '🔔 Вас упомянули' : base; return; }
+      flash.current = 0;
+      document.title = st.titleBadge && totalUnread > 0 ? `(${totalUnread > 99 ? '99+' : totalUnread}) ${base}` : base;
+    }, 1000);
+    return () => window.clearInterval(iv);
+  }, [totalUnread]);
   return <UnreadCtx.Provider value={{ byChannel, byCommunity, refresh, setActive }}>{children}</UnreadCtx.Provider>;
 }
 export const useUnread = () => useContext(UnreadCtx);

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { publicMediaUrl } from '../lib/supabase';
+import { loadLocalSettings } from '../lib/settings';
 
 const P: Record<string, ReactNode> = {
   hash: <path d="M5 9h14M5 15h14M10 4 8 20M16 4l-2 16" />,
@@ -36,6 +37,14 @@ const P: Record<string, ReactNode> = {
   sprout: <><path d="M12 21V11" /><path d="M12 13c-4.5 0-7.5-3-7.5-7.5 4.5 0 7.5 3 7.5 7.5zM12 11c0-4 3-7 7.5-7 0 4-3 7-7.5 7z" /></>,
   arrowUp: <path d="M12 19V5M6 11l6-6 6 6" />,
   arrowDown: <path d="M12 5v14M6 13l6 6 6-6" />,
+  heart: <path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z" />,
+  flag: <path d="M5 21V4h11l-2 4 2 4H5" />,
+  chat: <path d="M4 5h16v11H9l-5 4V5z" />,
+  userPlus: <><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M19 8v6M16 11h6" /></>,
+  check: <path d="m5 12 5 5 9-10" />,
+  ban: <><circle cx="12" cy="12" r="8.5" /><path d="m6 6 12 12" /></>,
+  compass: <><circle cx="12" cy="12" r="9" /><path d="m15.5 8.5-2 5-5 2 2-5 5-2z" /></>,
+  palette: <><path d="M12 3a9 9 0 0 0 0 18c1.5 0 2-1 2-2s-1-1.5-1-2.5S14 15 15 15h2a4 4 0 0 0 4-4c0-4.4-4-8-9-8z" /><path d="M7.5 11h.01M10 7.5h.01M14.5 7.5h.01" /></>,
   wifiOff: <path d="M3 3l18 18M8.5 16.5a5 5 0 0 1 7 0M5 13a10 10 0 0 1 5-2.7M19 13a10 10 0 0 0-2.3-1.6M2 9.5a15 15 0 0 1 4.3-2.6M22 9.5A15 15 0 0 0 11 5.1M12 20h.01" />,
 };
 
@@ -51,11 +60,11 @@ export function Icon({ name, size = 18, title }: { name: keyof typeof P | string
 
 function hue(s: string) { let h = 0; for (const c of s) h = (h * 31 + c.charCodeAt(0)) % 360; return h; }
 
-export function Avatar({ name, path, size = 36, ring }: { name: string; path?: string | null; size?: number; ring?: 'speaking' | 'online' | null }) {
+export function Avatar({ name, path, size = 36, ring, frame }: { name: string; path?: string | null; size?: number; ring?: 'speaking' | 'online' | null; frame?: string | null }) {
   const url = publicMediaUrl(path);
   const initials = name.trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
   return (
-    <span className={`avatar ${ring ? `ring-${ring}` : ''}`} style={{ width: size, height: size, fontSize: size * 0.38, background: url ? undefined : `hsl(${hue(name)} 40% 34%)` }}>
+    <span className={`avatar ${ring ? `ring-${ring}` : ''} ${frame && frame !== 'none' ? `frame-${frame}` : ''}`} style={{ width: size, height: size, fontSize: size * 0.38, background: url ? undefined : `hsl(${hue(name)} 40% 34%)` }}>
       {url ? <img src={url} alt="" loading="lazy" /> : initials}
     </span>
   );
@@ -66,7 +75,7 @@ export function Modal({ title, onClose, children, wide, footer }: { title: strin
   useEffect(() => {
     const prev = document.activeElement as HTMLElement | null;
     ref.current?.querySelector<HTMLElement>('input,textarea,select,button')?.focus();
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && loadLocalSettings().escClosesPanels !== false) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => { window.removeEventListener('keydown', onKey); prev?.focus?.(); };
   }, [onClose]);

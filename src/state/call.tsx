@@ -6,6 +6,7 @@ import { getIceServers } from '../lib/rtc/ice';
 import { canPickSpeaker, getCamera, getMic, getScreen, levelMeter } from '../lib/rtc/devices';
 import { useSession } from './session';
 import { useToast } from './toast';
+import { playSound } from '../lib/sound';
 
 export interface CallState {
   channelId: string | null; communityId: string | null; channelName: string;
@@ -38,6 +39,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
   const hb = useRef<number>(0);
   const meters = useRef(new Map<string, () => void>());
   const stRef = useRef(st); stRef.current = st;
+  const settingsRef = useRef(settings); settingsRef.current = settings;
+  const pttDown = useRef(false);
 
   const sync = useCallback(() => {
     const e = engine.current; if (!e) return;
@@ -100,7 +103,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
     meters.current.get(id)?.(); meters.current.delete(id);
     if (!stream) { setSt((s) => { const n = new Set(s.speaking); n.delete(id); return { ...s, speaking: n }; }); return; }
     meters.current.set(id, levelMeter(stream, (lvl) => {
-      const on = lvl > 0.12;
+      const on = lvl > (Number(settingsRef.current.speakingThreshold) || 0.12);
       setSt((s) => { if (s.speaking.has(id) === on) return s; const n = new Set(s.speaking); if (on) n.add(id); else n.delete(id); return { ...s, speaking: n }; });
     }));
   }, []);
@@ -115,6 +118,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
         setSt((s) => ({ ...s, mic: null })); await pushState({ mic: null });
       } else {
         const m = await getMic(settings.micId, settings);
+        // режим рации: микрофон захвачен, но звук идёт только пока зажата клавиша
+        if (settings.pushToTalk) m.getAudioTracks().forEach((t) => { t.enabled = pttDown.current; });
         await e.setMic(m); watchSpeaking(uid!, m);
         setSt((s) => ({ ...s, mic: m, deafened: false })); await pushState({ mic: m, deafened: false });
       }
@@ -126,9 +131,9 @@ export function CallProvider({ children }: { children: ReactNode }) {
     if (!stRef.current.canVideo && !stRef.current.camera) { toast.push('Нет права включать камеру в этой комнате.', 'error'); return; }
     try {
       if (stRef.current.camera) { await e.setCamera(null); setSt((s) => ({ ...s, camera: null })); await pushState({ camera: null }); }
-      else { const c = await getCamera(settings.camId); await e.setCamera(c); setSt((s) => ({ ...s, camera: c })); await pushState({ camera: c }); }
+      else { const c = await getCamera(settings.camId, settings); await e.setCamera(c); setSt((s) => ({ ...s, camera: c })); await pushState({ camera: c }); }
     } catch (err) { toast.fail(err); }
-  }, [settings.camId, pushState, toast]);
+  }, [settings, pushState, toast]);
 
   const toggleScreen = useCallback(async () => {
     const e = engine.current; if (!e) return;
@@ -136,14 +141,14 @@ export function CallProvider({ children }: { children: ReactNode }) {
     try {
       if (stRef.current.screen) { await e.setScreen(null); setSt((s) => ({ ...s, screen: null })); await pushState({ screen: null }); }
       else {
-        const sc = await getScreen();
+        const sc = await getScreen(settings);
         sc.getVideoTracks()[0]?.addEventListener('ended', () => {
           if (stRef.current.screen === sc) { void e.setScreen(null); setSt((s) => ({ ...s, screen: null })); void pushState({ screen: null }); }
         });
         await e.setScreen(sc); setSt((s) => ({ ...s, screen: sc })); await pushState({ screen: sc });
       }
     } catch (err) { toast.fail(err); }
-  }, [pushState, toast]);
+  }, [pushState, toast, settings]);
 
   const toggleDeafen = useCallback(async () => {
     const e = engine.current; if (!e) return;
@@ -157,13 +162,41 @@ export function CallProvider({ children }: { children: ReactNode }) {
     const e = engine.current; const s = stRef.current; if (!e) return;
     try {
       if (s.mic) { const m = await getMic(settings.micId, settings); await e.setMic(m); watchSpeaking(uid!, m); setSt((x) => ({ ...x, mic: m })); }
-      if (s.camera) { const c = await getCamera(settings.camId); await e.setCamera(c); setSt((x) => ({ ...x, camera: c })); }
+      if (s.camera) { const c = await getCamera(settings.camId, settings); await e.setCamera(c); setSt((x) => ({ ...x, camera: c })); }
     } catch (err) { toast.fail(err); }
   }, [settings, toast, uid, watchSpeaking]);
 
   const setVolume = useCallback((id: string, v: number) => setSt((s) => ({ ...s, volumes: { ...s.volumes, [id]: v } })), []);
 
   useEffect(() => { if (!uid && stRef.current.channelId) void leave(); }, [uid, leave]);
+
+  // звук входа/выхода участников
+  const prevCount = useRef(0);
+  useEffect(() => {
+    const n = st.participants.length;
+    if (st.status === 'connected' && settingsRef.current.voiceJoinSound && n !== prevCount.current) playSound(settingsRef.current, n > prevCount.current ? 'join' : 'leave');
+    prevCount.current = n;
+  }, [st.participants.length, st.status]);
+
+  // рация: удерживайте выбранную клавишу, чтобы говорить
+  useEffect(() => {
+    const isKey = (e: KeyboardEvent) => settingsRef.current.pushToTalk && e.code === settingsRef.current.pttKey && !(e.target as HTMLElement)?.closest?.('input,textarea,[contenteditable]');
+    const set = (on: boolean) => { pttDown.current = on; stRef.current.mic?.getAudioTracks().forEach((t) => { t.enabled = on; }); };
+    const down = (e: KeyboardEvent) => { if (isKey(e) && !e.repeat) { e.preventDefault(); set(true); } };
+    const up = (e: KeyboardEvent) => { if (isKey(e)) set(false); };
+    const blur = () => { if (settingsRef.current.pushToTalk) set(false); };
+    window.addEventListener('keydown', down); window.addEventListener('keyup', up); window.addEventListener('blur', blur);
+    return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up); window.removeEventListener('blur', blur); };
+  }, []);
+  useEffect(() => { // при выключении рации микрофон снова передаёт звук постоянно
+    if (!settings.pushToTalk) st.mic?.getAudioTracks().forEach((t) => { t.enabled = true; });
+  }, [settings.pushToTalk, st.mic]);
+
+  // предупреждение при закрытии вкладки во время звонка
+  useEffect(() => {
+    const h = (e: BeforeUnloadEvent) => { if (stRef.current.channelId && settingsRef.current.warnCloseInCall) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', h); return () => window.removeEventListener('beforeunload', h);
+  }, []);
   useEffect(() => () => { stopAll(); }, [stopAll]);
 
   return (
@@ -171,7 +204,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
       {children}
       {/* удалённый звук живёт здесь, чтобы не прерываться при переходах между каналами */}
       <div hidden>{st.participants.map((p) => p.audio && (
-        <RemoteAudio key={p.userId} stream={p.audio} volume={st.deafened ? 0 : st.volumes[p.userId] ?? 1} sinkId={settings.speakerId} />
+        <RemoteAudio key={p.userId} stream={p.audio} volume={st.deafened ? 0 : st.volumes[p.userId] ?? Number(settings.defaultVolume ?? 1)} sinkId={settings.speakerId} />
       ))}</div>
     </CallCtx.Provider>
   );
