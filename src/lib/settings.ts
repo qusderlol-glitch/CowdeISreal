@@ -1,7 +1,7 @@
 import type { UserSettings } from './types';
 
 export const DEFAULT_SETTINGS: UserSettings = {
-  theme: 'moss', accent: '#5be3a8', density: 'cozy', fontSize: 15, showMemberList: true, reducedMotion: false, highContrast: false,
+  theme: 'meadow', accent: '#2f8a5f', density: 'cozy', fontSize: 15, showMemberList: true, reducedMotion: false, highContrast: false,
   notifyDesktop: false, notifyMentionsOnly: true, notifySound: true, micId: '', camId: '', speakerId: '',
   noiseSuppression: true, echoCancellation: true,
 };

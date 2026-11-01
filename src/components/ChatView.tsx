@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { q, rpc, signedAttachmentUrl, supabase } from '../lib/supabase';
 import { has, PERM } from '../lib/permissions';
 import { fmtBytes, fmtTime, linkify } from '../lib/format';
@@ -17,7 +17,7 @@ const QUICK = ['👍', '❤️', '😂', '🎉', '😮', '😢', '🔥', '✅'];
 const MAX_FILE = 10 * 1024 * 1024;
 const ALLOWED = ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'application/pdf', 'text/plain', 'application/zip', 'audio/mpeg', 'audio/ogg', 'video/mp4', 'video/webm'];
 
-export default function ChatView({ channel, showMembers, onToggleMembers }: { channel: Channel; showMembers: boolean; onToggleMembers: () => void }) {
+export default function ChatView({ channel, onOpenPeople }: { channel: Channel; onOpenPeople: () => void }) {
   const { data, displayName, memberById } = useCommunity();
   const { uid } = useSession();
   const toast = useToast();
@@ -165,7 +165,7 @@ export default function ChatView({ channel, showMembers, onToggleMembers }: { ch
           }}><Icon name="star" /></button>
           <button className={`icon-btn ${drawer === 'pins' ? 'live' : ''}`} title="Закреплённые" onClick={() => setDrawer(drawer === 'pins' ? null : 'pins')}><Icon name="pin" /></button>
           <button className={`icon-btn ${drawer === 'search' ? 'live' : ''}`} title="Поиск" onClick={() => setDrawer(drawer === 'search' ? null : 'search')}><Icon name="search" /></button>
-          <button className={`icon-btn hide-mobile ${showMembers ? 'live' : ''}`} title="Участники" onClick={onToggleMembers}><Icon name="users" /></button>
+          <button className="icon-btn" title="Люди" aria-label="Люди" onClick={onOpenPeople}><Icon name="users" /></button>
         </div>
       </header>
       <div className="chat-body">
@@ -177,8 +177,9 @@ export default function ChatView({ channel, showMembers, onToggleMembers }: { ch
             {msgs.map((m, i) => {
               const prev = msgs[i - 1];
               const grouped = !!prev && prev.author_id === m.author_id && prev.kind === m.kind && !m.reply_to_id
-                && new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 5 * 60_000;
-              return <MessageRow key={m._tmp ?? m.id} m={m} grouped={grouped} replyTo={m.reply_to_id ? byId.get(m.reply_to_id) : undefined}
+                && new Date(m.created_at).toDateString() === new Date(prev.created_at).toDateString() && new Date(m.created_at).getTime() - new Date(prev.created_at).getTime() < 5 * 60_000;
+              const newDay = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();
+              return <Fragment key={m._tmp ?? m.id}>{newDay && <div className="day-divider"><span>{dayLabel(m.created_at)}</span></div>}<MessageRow m={m} grouped={grouped} replyTo={m.reply_to_id ? byId.get(m.reply_to_id) : undefined}
                 replyName={(() => { const r = m.reply_to_id ? byId.get(m.reply_to_id) : undefined; return r ? (r.kind === 'bot' ? botName(r.bot_key) : displayName(r.author_id)) : ''; })()}
                 mine={m.author_id === uid} canManage={canManage} canReact={has(perms, PERM.ADD_REACTIONS)} editing={editing === m.id}
                 onEdit={() => setEditing(m.id)} onStopEdit={() => setEditing(null)} onReply={() => setReply(m)} onProfile={setProfile}
@@ -186,7 +187,7 @@ export default function ChatView({ channel, showMembers, onToggleMembers }: { ch
                 onDiscard={() => setMsgs((l) => l.filter((x) => x._tmp !== m._tmp))}
                 name={m.kind === 'bot' ? botName(m.bot_key) : displayName(m.author_id)}
                 avatar={memberById(m.author_id)?.profile.avatar_path ?? null}
-                color={memberById(m.author_id)?.top?.color} me={uid} />;
+                color={memberById(m.author_id)?.top?.color} me={uid} /></Fragment>;
             })}
           </>}
         </div>
@@ -199,6 +200,13 @@ export default function ChatView({ channel, showMembers, onToggleMembers }: { ch
       {profile && <ProfileModal userId={profile} onClose={() => setProfile(null)} />}
     </section>
   );
+}
+
+function dayLabel(iso: string) {
+  const d = new Date(iso); const now = new Date(); const y = new Date(now); y.setDate(now.getDate() - 1);
+  if (d.toDateString() === now.toDateString()) return 'Сегодня';
+  if (d.toDateString() === y.toDateString()) return 'Вчера';
+  return d.toLocaleDateString('ru-RU', { day: 'numeric', month: 'long', year: d.getFullYear() === now.getFullYear() ? undefined : 'numeric' });
 }
 
 function botName(key: string | null) { return key === 'examples' ? 'Помощник (пример)' : key === 'system' ? 'Система' : `Бот ${key ?? ''}`; }
@@ -231,39 +239,44 @@ function MessageRow(props: {
   const groups = new Map<string, string[]>();
   for (const r of m.message_reactions ?? []) groups.set(r.emoji, [...(groups.get(r.emoji) ?? []), r.user_id]);
 
+  const time = new Date(m.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+  const isBot = m.kind === 'bot';
   return (
-    <article tabIndex={0} aria-label={`${props.name}: ${deleted ? 'сообщение удалено' : m.content.slice(0, 80)}`} className={`msg ${grouped ? 'grouped' : ''} ${mentioned ? 'mentioned' : ''} ${m._pending ? 'pending' : ''} ${m._failed ? 'failed' : ''} ${m.kind}`}>
-      {props.replyTo && <div className="reply-ref"><Icon name="reply" size={13} /> <b>{props.replyName}</b> {props.replyTo.deleted_at ? <i>сообщение удалено</i> : props.replyTo.content.slice(0, 90)}</div>}
-      {!grouped ? (
+    <article tabIndex={0} aria-label={`${props.name}: ${deleted ? 'сообщение удалено' : m.content.slice(0, 80)}`}
+      className={`msg ${mine && !isBot ? 'mine' : 'theirs'} ${grouped ? 'grouped' : ''} ${mentioned ? 'mentioned' : ''} ${m._pending ? 'pending' : ''} ${m._failed ? 'failed' : ''} ${m.kind}`}>
+      {!mine && !isBot && (!grouped ? (
         <button className="msg-avatar" onClick={() => m.author_id && props.onProfile(m.author_id)} aria-label={`Профиль ${props.name}`} disabled={!m.author_id}>
-          {m.kind === 'bot' ? <span className="avatar bot"><Icon name="bot" size={20} /></span> : <Avatar name={props.name} path={props.avatar} size={38} />}
+          <Avatar name={props.name} path={props.avatar} size={34} />
         </button>
-      ) : <span className="msg-gutter">{new Date(m.created_at).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}</span>}
-      <div className="msg-main">
-        {!grouped && <div className="msg-meta">
+      ) : <span className="msg-spacer" />)}
+      <div className="bubble-col">
+        {!grouped && !mine && !isBot && (
           <button className="author" style={{ color: props.color }} onClick={() => m.author_id && props.onProfile(m.author_id)}>{props.name}</button>
-          {m.kind === 'bot' && <span className="pill">{m.bot_key === 'examples' ? 'пример' : 'бот'}</span>}
-          <time dateTime={m.created_at} title={new Date(m.created_at).toLocaleString('ru-RU')}>{fmtTime(m.created_at)}</time>
-          {m.pinned_at && <Icon name="pin" size={13} title="Закреплено" />}
-        </div>}
-        {props.editing ? (
-          <div className="edit-box">
-            <textarea value={draft} maxLength={4000} autoFocus onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void saveEdit(); } if (e.key === 'Escape') props.onStopEdit(); }} />
-            <small className="muted">Enter — сохранить · Esc — отмена</small>
-          </div>
-        ) : deleted ? <p className="msg-text deleted">Сообщение удалено</p> : (
-          <p className="msg-text">{linkify(m.content).map((p, i) => p.type === 'link'
-            ? <a key={i} href={p.value} target="_blank" rel="noopener noreferrer nofollow">{p.value}</a>
-            : p.type === 'mention' ? <span key={i} className="mention">{p.value}</span> : <span key={i}>{p.value}</span>)}
-            {m.edited_at && <small className="muted"> (изм.)</small>}</p>
         )}
-        {!deleted && (m.message_attachments ?? []).map((a) => <AttachmentView key={a.id} a={a} />)}
+        <div className="bubble">
+          {isBot && <div className="note-head"><Icon name="bot" size={15} /> <b>{props.name}</b> <span className="pill">{m.bot_key === 'examples' ? 'пример' : 'бот'}</span></div>}
+          {props.replyTo && <div className="reply-ref"><Icon name="reply" size={12} /> <b>{props.replyName}</b> {props.replyTo.deleted_at ? <i>сообщение удалено</i> : props.replyTo.content.slice(0, 90)}</div>}
+          {props.editing ? (
+            <div className="edit-box">
+              <textarea value={draft} maxLength={4000} autoFocus onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void saveEdit(); } if (e.key === 'Escape') props.onStopEdit(); }} />
+              <small>Enter — сохранить · Esc — отмена</small>
+            </div>
+          ) : deleted ? <p className="msg-text deleted">Сообщение удалено</p> : m.content ? (
+            <p className="msg-text">{linkify(m.content).map((p, i) => p.type === 'link'
+              ? <a key={i} href={p.value} target="_blank" rel="noopener noreferrer nofollow">{p.value}</a>
+              : p.type === 'mention' ? <span key={i} className="mention">{p.value}</span> : <span key={i}>{p.value}</span>)}</p>
+          ) : null}
+          {!deleted && (m.message_attachments ?? []).map((a) => <AttachmentView key={a.id} a={a} />)}
+          <span className="bubble-time" title={new Date(m.created_at).toLocaleString('ru-RU')}>
+            {m.pinned_at && <Icon name="pin" size={11} title="Закреплено" />}{m.edited_at && 'изм. · '}{time}
+            {m._pending && ' · отправка…'}
+          </span>
+        </div>
         {groups.size > 0 && <div className="reactions">{[...groups].map(([e, users]) => (
           <button key={e} className={`reaction ${props.me && users.includes(props.me) ? 'mine' : ''}`} onClick={() => react(e)} disabled={!props.canReact}
             aria-label={`${e}: ${users.length}`}>{e} {users.length}</button>
         ))}</div>}
-        {m._pending && <small className="muted">Отправка…</small>}
         {m._failed && <div className="send-failed"><span>Не отправлено: {m._failed}</span><button className="link-btn" onClick={props.onRetry}>Повторить</button><button className="link-btn" onClick={props.onDiscard}>Убрать</button></div>}
       </div>
       {!deleted && !m._tmp && (

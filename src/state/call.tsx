@@ -13,6 +13,7 @@ export interface CallState {
   error: string | null; turn: 'none' | 'ok' | 'error';
   mic: MediaStream | null; camera: MediaStream | null; screen: MediaStream | null;
   deafened: boolean;
+  canVideo: boolean;
   participants: RemoteParticipant[];
   speaking: Set<string>;
   volumes: Record<string, number>;
@@ -27,7 +28,7 @@ interface Ctx extends CallState {
 const CallCtx = createContext<Ctx>(null as unknown as Ctx);
 
 const initial: CallState = { channelId: null, communityId: null, channelName: '', status: 'idle', error: null, turn: 'none',
-  mic: null, camera: null, screen: null, deafened: false, participants: [], speaking: new Set(), volumes: {} };
+  mic: null, camera: null, screen: null, deafened: false, canVideo: false, participants: [], speaking: new Set(), volumes: {} };
 
 export function CallProvider({ children }: { children: ReactNode }) {
   const { uid, settings } = useSession();
@@ -75,6 +76,8 @@ export function CallProvider({ children }: { children: ReactNode }) {
     try {
       if (configuredProvider() === 'sfu') throw new Error('SFU-провайдер выбран (VITE_CALL_PROVIDER=sfu), но клиентский адаптер не подключён. См. README → «Голос и видео».');
       await rpc('voice_join', { p_channel: channel.id });
+      const canVideo = await rpc<boolean>('has_channel_perm', { p_channel: channel.id, p_perm: 1024 }).catch(() => false);
+      setSt((s) => ({ ...s, canVideo }));
       const ice = await getIceServers();
       const e = new MeshCall(supabase, channel.id, uid, ice.servers);
       engine.current = e;
@@ -120,6 +123,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const toggleCamera = useCallback(async () => {
     const e = engine.current; if (!e) return;
+    if (!stRef.current.canVideo && !stRef.current.camera) { toast.push('Нет права включать камеру в этой комнате.', 'error'); return; }
     try {
       if (stRef.current.camera) { await e.setCamera(null); setSt((s) => ({ ...s, camera: null })); await pushState({ camera: null }); }
       else { const c = await getCamera(settings.camId); await e.setCamera(c); setSt((s) => ({ ...s, camera: c })); await pushState({ camera: c }); }
@@ -128,6 +132,7 @@ export function CallProvider({ children }: { children: ReactNode }) {
 
   const toggleScreen = useCallback(async () => {
     const e = engine.current; if (!e) return;
+    if (!stRef.current.canVideo && !stRef.current.screen) { toast.push('Нет права показывать экран в этой комнате.', 'error'); return; }
     try {
       if (stRef.current.screen) { await e.setScreen(null); setSt((s) => ({ ...s, screen: null })); await pushState({ screen: null }); }
       else {

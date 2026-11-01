@@ -4,7 +4,7 @@ import { levelFromXp } from '../lib/xp';
 import { Avatar, Icon } from './ui';
 import ProfileModal from './ProfileModal';
 
-export default function MemberList() {
+export default function MemberList({ onClose }: { onClose: () => void }) {
   const { data, online } = useCommunity();
   const [open, setOpen] = useState<string | null>(null);
   if (!data) return null;
@@ -18,10 +18,13 @@ export default function MemberList() {
   }
   const ordered = [...groups.entries()].sort(([a], [b]) => (a === 'offline' ? 1 : 0) - (b === 'offline' ? 1 : 0));
   return (
-    <aside className="members" aria-label="Участники">
+    <>
+    <div className="scrim" onClick={onClose} />
+    <aside className="people-drawer" aria-label="Люди">
+      <header className="drawer-head"><h3>Люди · {data.members.length}</h3><button className="icon-btn" onClick={onClose} aria-label="Закрыть"><Icon name="x" /></button></header>
       {ordered.map(([k, g]) => (
         <section key={k}>
-          <h4 className="cat">{g.title} — {g.items.length}</h4>
+          <h4 className="group">{g.title} — {g.items.length}</h4>
           <ul>{g.items.map((m) => (
             <li key={m.user_id}>
               <button className={`member ${online.has(m.user_id) ? '' : 'offline'}`} onClick={() => setOpen(m.user_id)}>
@@ -37,5 +40,6 @@ export default function MemberList() {
       ))}
       {open && <ProfileModal userId={open} onClose={() => setOpen(null)} />}
     </aside>
+    </>
   );
 }

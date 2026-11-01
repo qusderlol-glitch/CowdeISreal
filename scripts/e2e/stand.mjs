@@ -10,6 +10,9 @@ export class Stand {
   constructor(connectionString) {
     this.pool = new pg.Pool({ connectionString, max: 4 });
     this.passwords = new Map();
+    this.confirmed = new Set();
+    this.codes = new Map(); // email -> { code, type } — вместо реальной почты
+    this.sent = [];
     this.rels = null;
     this.funcs = null;
   }
@@ -40,9 +43,16 @@ export class Stand {
     return { access_token, token_type: 'bearer', expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: `r-${user.id}`, user };
   }
 
+  sendCode(email, type) {
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    this.codes.set(email, { code, type });
+    this.sent.push({ email, type, code });
+    return code;
+  }
+
   userObj(row) {
-    return { id: row.id, aud: 'authenticated', role: 'authenticated', email: row.email, email_confirmed_at: new Date().toISOString(),
-      user_metadata: row.raw_user_meta_data ?? {}, app_metadata: { provider: 'email' }, created_at: new Date().toISOString(), identities: [] };
+    return { identities: [{ id: row.id, provider: 'email' }], id: row.id, aud: 'authenticated', role: 'authenticated', email: row.email, email_confirmed_at: new Date().toISOString(),
+      user_metadata: row.raw_user_meta_data ?? {}, app_metadata: { provider: 'email' }, created_at: new Date().toISOString() };
   }
 
   claimsFrom(headers) {
@@ -78,13 +88,15 @@ export class Stand {
       const id = randomUUID();
       const r = await this.pool.query('insert into auth.users (id, email, raw_user_meta_data) values ($1, $2, $3) returning *', [id, body.email, body.data ?? {}]);
       this.passwords.set(body.email, body.password);
-      const user = this.userObj(r.rows[0]);
-      return [200, { ...this.session(user), user }];
+      this.sendCode(body.email, 'signup');
+      // как GoTrue с включённым подтверждением: пользователь без сессии
+      return [200, { ...this.userObj(r.rows[0]), email_confirmed_at: null, confirmation_sent_at: new Date().toISOString() }];
     }
     if (path === '/token') {
       if (query.get('grant_type') === 'password') {
         const r = await this.pool.query('select * from auth.users where email = $1', [body.email]);
         if (!r.rowCount || this.passwords.get(body.email) !== body.password) return [400, { error: 'invalid_grant', error_description: 'Invalid login credentials', message: 'Invalid login credentials', code: 'invalid_credentials' }];
+        if (!this.confirmed.has(body.email)) return [400, { error: 'invalid_grant', message: 'Email not confirmed', code: 'email_not_confirmed' }];
         const user = this.userObj(r.rows[0]);
         return [200, this.session(user)];
       }
@@ -97,7 +109,22 @@ export class Stand {
     }
     if (path === '/user' && method === 'GET') return null; // обрабатывается в handle() по токену
     if (path === '/logout') return [204, null];
-    if (path === '/recover') return [200, {}];
+    if (path === '/resend') { this.sendCode(body.email, 'signup'); return [200, {}]; }
+    if (path === '/recover') {
+      const r = await this.pool.query('select 1 from auth.users where email = $1', [body.email]);
+      if (r.rowCount) this.sendCode(body.email, 'recovery');
+      return [200, {}];
+    }
+    if (path === '/verify' && method === 'POST') {
+      const want = this.codes.get(body.email);
+      const okType = want && (body.type === 'email' ? want.type === 'signup' : body.type === want.type);
+      if (!okType || want.code !== body.token) return [403, { code: 'otp_expired', message: 'Token has expired or is invalid' }];
+      this.codes.delete(body.email);
+      this.confirmed.add(body.email);
+      const r = await this.pool.query('select * from auth.users where email = $1', [body.email]);
+      const user = this.userObj(r.rows[0]);
+      return [200, { ...this.session(user), user }];
+    }
     return [404, { message: `stand: auth ${method} ${path} not implemented` }];
   }
 
@@ -212,7 +239,14 @@ export class Stand {
     try {
       if (url.pathname.startsWith('/auth/v1')) {
         const path = url.pathname.slice('/auth/v1'.length);
-        if (path === '/user') {
+        if (path === '/user' && method === 'PUT') {
+          if (!claims) [status, out] = [401, { message: 'not authenticated' }];
+          else {
+            const r = await this.pool.query('select * from auth.users where id = $1', [claims.sub]);
+            if (body?.password) this.passwords.set(r.rows[0].email, body.password);
+            [status, out] = [200, this.userObj(r.rows[0])];
+          }
+        } else if (path === '/user') {
           if (!claims) [status, out] = [401, { message: 'not authenticated' }];
           else { const r = await this.pool.query('select * from auth.users where id = $1', [claims.sub]); [status, out] = [200, this.userObj(r.rows[0])]; }
         } else [status, out] = await this.auth(method, path, url.searchParams, body);

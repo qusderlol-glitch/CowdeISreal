@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { has, PERM } from '../lib/permissions';
 import type { Channel } from '../lib/types';
-import { canPickSpeaker, canShareScreen, listDevices } from '../lib/rtc/devices';
+import { canPickSpeaker, listDevices } from '../lib/rtc/devices';
 import { configuredProvider } from '../lib/rtc/provider';
 import { useCall } from '../state/call';
 import { useCommunity } from '../state/community';
@@ -18,13 +18,11 @@ export default function VoiceView({ channel }: { channel: Channel }) {
   const { data, displayName, memberById } = useCommunity();
   const { uid, profile } = useSession();
   const call = useCall();
-  const [devices, setDevices] = useState(false);
   const perms = data?.channelPerms.get(channel.id) ?? 0;
   const here = call.channelId === channel.id && call.status !== 'failed';
   const failedHere = call.channelId === channel.id && call.status === 'failed';
   const states = (data?.voice ?? []).filter((v) => v.channel_id === channel.id);
   const limit = data?.community.voice_mesh_limit ?? 6;
-  const canVideo = has(perms, PERM.STREAM_VIDEO);
 
   if (!here) {
     return (
@@ -60,16 +58,16 @@ export default function VoiceView({ channel }: { channel: Channel }) {
       {screens.length > 0 && <div className="screens">{screens.map((s) => (
         <figure key={s.id + s.stream.id} className="tile screen-tile"><Video stream={s.stream} label={s.name} /><figcaption><Icon name="screen" size={14} /> {s.name}</figcaption></figure>
       ))}</div>}
-      <div className="tiles">
+      <div className="stage">
         <figure className={`tile ${call.speaking.has(uid!) ? 'speaking' : ''}`}>
-          {call.camera ? <Video stream={call.camera} mirror label="Ваша камера" /> : <Avatar name={profile?.display_name ?? 'Вы'} path={profile?.avatar_path} size={72} />}
+          {call.camera ? <Video stream={call.camera} mirror label="Ваша камера" /> : <Avatar name={profile?.display_name ?? 'Вы'} path={profile?.avatar_path} size={88} />}
           <figcaption>{profile?.display_name} (вы) {!call.mic && <Icon name="micOff" size={14} title="Микрофон выключен" />}</figcaption>
         </figure>
         {remote.map((p) => {
           const st = stateOf(p.userId);
           return (
             <figure key={p.userId} className={`tile ${call.speaking.has(p.userId) ? 'speaking' : ''}`}>
-              {p.camera ? <Video stream={p.camera} label={`Камера ${displayName(p.userId)}`} /> : <Avatar name={displayName(p.userId)} path={memberById(p.userId)?.profile.avatar_path} size={72} />}
+              {p.camera ? <Video stream={p.camera} label={`Камера ${displayName(p.userId)}`} /> : <Avatar name={displayName(p.userId)} path={memberById(p.userId)?.profile.avatar_path} size={88} />}
               <figcaption>
                 {displayName(p.userId)}
                 {st?.muted && <Icon name="micOff" size={14} title="Микрофон выключен" />}
@@ -85,18 +83,7 @@ export default function VoiceView({ channel }: { channel: Channel }) {
         })}
       </div>
       {remote.length === 0 && call.status === 'connected' && <p className="muted center pad">Вы одни в комнате. Пригласите кого-нибудь — звук начнёт передаваться, когда вы включите микрофон.</p>}
-      <div className="call-controls" role="toolbar" aria-label="Управление звонком">
-        <button className={`ctrl ${call.mic ? 'on' : ''}`} onClick={call.toggleMic} aria-pressed={!!call.mic}><Icon name={call.mic ? 'mic' : 'micOff'} /> <span>{call.mic ? 'Микрофон вкл.' : 'Микрофон'}</span></button>
-        <button className={`ctrl ${call.camera ? 'on' : ''}`} onClick={call.toggleCamera} disabled={!canVideo} aria-pressed={!!call.camera} title={canVideo ? '' : 'Нет права на видео'}>
-          <Icon name={call.camera ? 'camera' : 'cameraOff'} /> <span>Камера</span></button>
-        <button className={`ctrl ${call.screen ? 'on' : ''}`} onClick={call.toggleScreen} disabled={!canVideo || !canShareScreen} aria-pressed={!!call.screen}
-          title={!canShareScreen ? 'Демонстрация экрана не поддерживается этим браузером/устройством' : !canVideo ? 'Нет права на видео' : ''}>
-          <Icon name="screen" /> <span>{call.screen ? 'Остановить показ' : 'Экран'}</span></button>
-        <button className={`ctrl ${call.deafened ? 'warn' : ''}`} onClick={call.toggleDeafen} aria-pressed={call.deafened}><Icon name={call.deafened ? 'headphonesOff' : 'headphones'} /> <span>Звук</span></button>
-        <button className="ctrl" onClick={() => setDevices(true)}><Icon name="settings" /> <span>Устройства</span></button>
-        <button className="ctrl danger" onClick={() => call.leave()}><Icon name="phoneOff" /> <span>Выйти</span></button>
-      </div>
-      {devices && <DevicePicker onClose={() => setDevices(false)} />}
+      <p className="stage-hint muted">Микрофон, камера и экран — в панели звонка внизу.</p>
     </section>
   );
 }

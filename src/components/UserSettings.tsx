@@ -102,15 +102,14 @@ function PrivacyTab() {
 
 function AppearanceTab() {
   const { settings: s, setSettings } = useSession();
-  const themes: [US['theme'], string][] = [['moss', 'Мох (тёмная)'], ['clay', 'Глина (тёплая тёмная)'], ['night', 'Ночь (OLED)'], ['sand', 'Песок (светлая)']];
+  const themes: [US['theme'], string][] = [['meadow', 'Луг (светлая)'], ['moss', 'Мох (тёмная)'], ['clay', 'Глина (тёплая тёмная)'], ['night', 'Ночь (OLED)']];
   return (
     <div className="stack">
       <div className="theme-grid">{themes.map(([k, l]) => <button key={k} data-preview={k} className={`theme-card ${s.theme === k ? 'active' : ''}`} onClick={() => setSettings({ theme: k })}>{l}</button>)}</div>
       <Field label="Акцентный цвет"><input type="color" value={s.accent} onChange={(e) => setSettings({ accent: e.target.value })} /></Field>
       <Field label="Плотность"><select value={s.density} onChange={(e) => setSettings({ density: e.target.value as US['density'] })}><option value="cozy">Просторно</option><option value="compact">Компактно</option></select></Field>
       <Field label={`Размер шрифта: ${s.fontSize}px`}><input type="range" min={12} max={20} value={s.fontSize} onChange={(e) => setSettings({ fontSize: Number(e.target.value) })} /></Field>
-      <Toggle label="Показывать список участников" checked={s.showMemberList} onChange={(v) => setSettings({ showMemberList: v })} />
-      <p className="muted small">Настройки синхронизируются между устройствами через ваш аккаунт.</p>
+            <p className="muted small">Настройки синхронизируются между устройствами через ваш аккаунт.</p>
     </div>
   );
 }

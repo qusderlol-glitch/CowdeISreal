@@ -24,6 +24,16 @@ enable_signup = true
 [auth.email]
 enable_signup = true
 enable_confirmations = true
+otp_length = 6
+otp_expiry = 3600
+
+[auth.email.template.confirmation]
+subject = "Код подтверждения RootApp Community"
+content_path = "./supabase/templates/confirmation.html"
+
+[auth.email.template.recovery]
+subject = "Код для сброса пароля RootApp Community"
+content_path = "./supabase/templates/recovery.html"
 
 [functions.turn-credentials]
 verify_jwt = true

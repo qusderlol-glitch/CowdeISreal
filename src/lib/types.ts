@@ -30,7 +30,7 @@ export interface VoiceState { channel_id: string; user_id: string; community_id:
 export interface Invite { code: string; community_id: string; created_by: string | null; created_at: string; expires_at: string | null; max_uses: number | null; uses: number; revoked_at: string | null }
 
 export interface UserSettings {
-  theme: 'moss' | 'sand' | 'night' | 'clay';
+  theme: 'meadow' | 'moss' | 'clay' | 'night';
   accent: string;
   density: 'cozy' | 'compact';
   fontSize: number;

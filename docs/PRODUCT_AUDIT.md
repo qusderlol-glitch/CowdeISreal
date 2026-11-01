@@ -13,6 +13,8 @@
 | GitHub-аккаунт `qusderlol-glitch` (21 репозиторий) | список репозиториев; `gh search code` по «RootApp», «Diggers», «DiggersBtwModes», «Root App» | Репозиториев с такими названиями нет, поиск по коду пуст |
 | 9 правдоподобных репозиториев (quscode, my-site, codwe-ai, cdtest-launcher, opetaja-abiline, cdtestengine, QsZenHub, CodeSyntaxis.-People-die, codesyntax-people-die) | `git clone --depth 1` во временную папку, `grep -rIil "rootapp\|root app\|digger"` (код не запускался) | Совпадений нет |
 | Репозитории, описанные владельцем как вредоносные/RAT (Hello32, ByE64, Solarasb, SolarasbX, KfcRat, Roblox-not-trojan) | **намеренно не клонировались** | — |
+| Gmail владельца (повторная проверка по запросу «в документах есть DiggersBtwModes») | поиск `DiggersBtwModes OR Diggers OR "Diggers btw" OR RootApp`, затем `digger OR diggers OR btwmodes OR "btw modes" OR диггер OR диггеры` по всем папкам | 0 писем |
+| Артефакты claude.ai владельца (6 шт.) | список названий и описаний | Ни одного про DiggersBtwModes или ботов |
 | MCP-коннекторы Notion/Linear/Slack/Asana/Atlassian | были бы источником заметок/бэклога | Не подключились (ошибка прокси 403) — проверить нельзя |
 
 ## Что найдено полезного (не RootApp, но влияет на решения)

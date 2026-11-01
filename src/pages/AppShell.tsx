@@ -6,18 +6,19 @@ import { useSession } from '../state/session';
 import { CommunityProvider, useCommunity } from '../state/community';
 import { UnreadProvider, useUnread } from '../state/unread';
 import { Empty, ErrorBox, Icon, Spinner } from '../components/ui';
-import Rail from '../components/Rail';
-import Sidebar from '../components/Sidebar';
+import TopBar from '../components/TopBar';
+import Rooms from '../components/Rooms';
 import ChatView from '../components/ChatView';
 import VoiceView from '../components/VoiceView';
 import MemberList from '../components/MemberList';
+import CallDock from '../components/CallDock';
 import CreateJoinModal from '../components/CreateJoinModal';
 import UserSettings from '../components/UserSettings';
 import CommunitySettings from '../components/CommunitySettings';
 import Leaderboard from '../components/Leaderboard';
 import { BRAND } from '../lib/brand';
 
-export type Panel = 'nav' | 'main' | 'members';
+export type Panel = 'nav' | 'main';
 
 export default function AppShell() {
   return <UnreadProvider><Shell /></UnreadProvider>;
@@ -44,16 +45,19 @@ function Shell() {
   useEffect(() => { if (chid) setPanel('main'); }, [chid]);
 
   return (
-    <div className="shell" data-panel={panel}>
+    <div className="app" data-panel={panel}>
       {!online && <div className="offline-bar"><Icon name="wifiOff" size={16} /> Нет сети. Сообщения не отправятся, пока соединение не восстановится.</div>}
-      <Rail communities={communities ?? []} active={cid} onAdd={() => setModal('create')} onUser={() => setModal('user')} />
-      {err && !communities ? <main className="main"><ErrorBox error={err} onRetry={load} /></main>
-        : !communities ? <main className="main"><Spinner /></main>
-        : cid ? (
-          <CommunityProvider key={cid} cid={cid}>
-            <CommunityLayout chid={chid} panel={panel} setPanel={setPanel} onUser={() => setModal('user')} />
-          </CommunityProvider>
-        ) : <Home count={communities.length} onCreate={() => setModal('create')} />}
+      <TopBar communities={communities ?? []} active={cid} onAdd={() => setModal('create')} onUser={() => setModal('user')} />
+      <div className="workspace">
+        {err && !communities ? <main className="main"><ErrorBox error={err} onRetry={load} /></main>
+          : !communities ? <main className="main"><Spinner /></main>
+          : cid ? (
+            <CommunityProvider key={cid} cid={cid}>
+              <CommunityLayout chid={chid} setPanel={setPanel} />
+            </CommunityProvider>
+          ) : <Home count={communities.length} onCreate={() => setModal('create')} />}
+      </div>
+      <CallDock />
       {modal === 'create' && <CreateJoinModal onClose={() => setModal(null)} onDone={load} />}
       {modal === 'user' && <UserSettings onClose={() => setModal(null)} />}
     </div>
@@ -63,21 +67,22 @@ function Shell() {
 function Home({ count, onCreate }: { count: number; onCreate: () => void }) {
   return (
     <main className="main home">
-      <Empty title={count ? 'Выберите сообщество слева' : `Добро пожаловать в ${BRAND.name}`}>
-        <p>{count ? 'Или создайте новое — это бесплатно.' : 'Создайте своё сообщество или вступите по ссылке-приглашению.'}</p>
+      <div className="home-card">
+        <Icon name="sprout" size={48} />
+        <h1>{count ? 'Выберите сообщество сверху' : `Добро пожаловать в ${BRAND.name}`}</h1>
+        <p className="muted">{count ? 'Или посадите новое — это бесплатно.' : 'Создайте своё сообщество или вступите по ссылке-приглашению.'}</p>
         <button className="btn primary" onClick={onCreate}><Icon name="plus" /> Создать или вступить</button>
-      </Empty>
+      </div>
     </main>
   );
 }
 
-function CommunityLayout({ chid, panel, setPanel, onUser }: { chid?: string; panel: Panel; setPanel: (p: Panel) => void; onUser: () => void }) {
+function CommunityLayout({ chid, setPanel }: { chid?: string; setPanel: (p: Panel) => void }) {
   const { data, error, loading, reload } = useCommunity();
-  const { settings } = useSession();
   const { setActive, refresh } = useUnread();
   const nav = useNavigate();
   const [modal, setModal] = useState<null | 'settings' | 'ranks'>(null);
-  const [showMembers, setShowMembers] = useState(settings.showMemberList);
+  const [people, setPeople] = useState(false);
 
   const channel = data?.channels.find((c) => c.id === chid) ?? null;
   useEffect(() => {
@@ -94,18 +99,14 @@ function CommunityLayout({ chid, panel, setPanel, onUser }: { chid?: string; pan
 
   return (
     <>
-      <Sidebar activeChannel={chid} onOpenSettings={() => setModal('settings')} onOpenRanks={() => setModal('ranks')} onUser={onUser} onPick={() => setPanel('main')} />
+      <Rooms activeChannel={chid} onOpenSettings={() => setModal('settings')} onOpenRanks={() => setModal('ranks')} onOpenPeople={() => setPeople(true)} onPick={() => setPanel('main')} />
       <main className="main">
-        <div className="mobile-nav">
-          <button className="icon-btn" onClick={() => setPanel('nav')} aria-label="Каналы"><Icon name="menu" /></button>
-          <span>{channel ? channel.name : data.community.name}</span>
-          <button className="icon-btn" onClick={() => setPanel(panel === 'members' ? 'main' : 'members')} aria-label="Участники"><Icon name="users" /></button>
-        </div>
-        {!channel ? <Empty title="Нет доступных каналов">Попросите администратора открыть вам доступ.</Empty>
+        <button className="back-to-rooms" onClick={() => setPanel('nav')}><Icon name="arrowUp" size={14} /> Комнаты</button>
+        {!channel ? <Empty title="Нет доступных комнат">Попросите администратора открыть вам доступ.</Empty>
           : channel.kind === 'voice' ? <VoiceView key={channel.id} channel={channel} />
-          : <ChatView key={channel.id} channel={channel} showMembers={showMembers} onToggleMembers={() => setShowMembers((v) => !v)} />}
+          : <ChatView key={channel.id} channel={channel} onOpenPeople={() => setPeople(true)} />}
       </main>
-      {(showMembers || panel === 'members') && <MemberList />}
+      {people && <MemberList onClose={() => setPeople(false)} />}
       {modal === 'settings' && <CommunitySettings onClose={() => setModal(null)} />}
       {modal === 'ranks' && <Leaderboard onClose={() => setModal(null)} />}
     </>

@@ -28,7 +28,15 @@ async function ctx(viewport = { width: 1366, height: 860 }) {
   p.on('pageerror', (e) => pageErrors.push(`${e.message}`));
   return p;
 }
-async function register(p, email, handle, name) {
+async function codeFor(email, type = 'signup') {
+  for (let i = 0; i < 40; i++) {
+    const c = stand.codes.get(email);
+    if (c && c.type === type) return c.code;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error(`no ${type} code for ${email}`);
+}
+async function register(p, email, handle, name, { verify = true } = {}) {
   await p.goto(`${BASE}/app`);
   await p.waitForURL('**/login**');
   await p.getByRole('tab', { name: 'Регистрация' }).click();
@@ -36,7 +44,11 @@ async function register(p, email, handle, name) {
   await p.getByLabel('Пароль').fill('correct-horse-1');
   await p.getByLabel('Handle (уникальное имя)').fill(handle);
   await p.getByLabel('Отображаемое имя').fill(name);
-  await p.getByRole('button', { name: 'Создать аккаунт' }).click();
+  await p.getByRole('button', { name: 'Получить код' }).click();
+  await p.getByLabel('Код из письма').waitFor();
+  if (!verify) return;
+  await p.getByLabel('Код из письма').fill(await codeFor(email));
+  await p.getByRole('button', { name: 'Подтвердить' }).click();
   await p.waitForURL(/\/app$/);
 }
 const composer = (p) => p.getByLabel('Текст сообщения');
@@ -55,9 +67,18 @@ try {
 
   // 1. Алиса: регистрация, создание сообщества, сообщения
   const a = await ctx();
-  await register(a, 'alice@example.com', 'alice', 'Алиса');
+  await register(a, 'alice@example.com', 'alice', 'Алиса', { verify: false });
+  await expectText(a, 'Мы отправили код подтверждения');
+  await a.getByLabel('Код из письма').fill('000000');
+  await a.getByRole('button', { name: 'Подтвердить' }).click();
+  await expectText(a, 'Код неверный или устарел');
+  ok('регистрация: почта + пароль → экран ввода кода; неверный код отклонён');
+  await a.getByLabel('Код из письма').fill(await codeFor('alice@example.com'));
+  await a.getByRole('button', { name: 'Подтвердить' }).click();
+  await a.waitForURL(/\/app$/);
   await expectText(a, 'Добро пожаловать');
-  ok('регистрация → вход → пустое состояние главной');
+  await a.screenshot({ path: `${SHOTS}/01-home.png` });
+  ok('верный код из письма подтверждает почту и сразу открывает приложение');
   await a.locator('.main').getByRole('button', { name: 'Создать или вступить' }).click();
   await a.getByLabel('Название').fill('Клуб садоводов');
   await a.getByRole('button', { name: 'Создать', exact: true }).click();
@@ -78,10 +99,9 @@ try {
   ok('команда /roll исполнена на сервере, ответ бота помечен как «пример»');
   await expectText(a, 'Обновления в реальном времени недоступны', 15000);
   ok('без Realtime UI честно сообщает, что живые обновления недоступны');
-  await a.screenshot({ path: `${SHOTS}/01-chat.png` });
+  await a.screenshot({ path: `${SHOTS}/02-chat.png` });
 
   // приглашение
-  await a.locator('.side-title').click();
   await a.getByRole('button', { name: 'Пригласить' }).click();
   await a.getByRole('button', { name: 'Создать ссылку' }).click();
   const invite = await a.locator('.copy-row input').inputValue();
@@ -90,7 +110,6 @@ try {
   ok(`приглашение создано: ${invite.replace(BASE, '')}`);
 
   // роли и журнал
-  await a.locator('.side-title').click();
   await a.getByRole('button', { name: 'Настройки сообщества' }).click();
   await a.getByRole('button', { name: 'Роли' }).click();
   await a.getByRole('button', { name: 'Создать роль' }).click();
@@ -99,7 +118,7 @@ try {
   await expectText(a, 'создал(а) роль');
   await a.getByRole('button', { name: 'Ресурсы и расходы' }).click();
   await expectText(a, 'Для участников всё бесплатно');
-  await a.screenshot({ path: `${SHOTS}/02-settings.png` });
+  await a.screenshot({ path: `${SHOTS}/04-settings.png` });
   await a.keyboard.press('Escape');
   ok('роль создана, действие записано в журнал аудита, раздел расходов доступен');
 
@@ -127,7 +146,7 @@ try {
   if (await b.getByRole('toolbar', { name: 'Управление звонком' }).count()) throw new Error('call controls shown after failure');
   await b.getByRole('button', { name: 'Повторить' }).click();
   await b.waitForResponse((r) => r.url().includes('rpc/voice_join'));
-  await b.screenshot({ path: `${SHOTS}/03-voice-error.png` });
+  await b.screenshot({ path: `${SHOTS}/05-voice-error.png` });
   ok('голос без Realtime: понятная ошибка, нерабочие кнопки скрыты, «Повторить» снова вызывает voice_join');
 
   // 3. Алиса видит упоминание и заглушает Боба
@@ -135,7 +154,9 @@ try {
   await expectText(a, 'привет, это ответ Боба');
   if (!(await a.locator('.msg.mentioned').count())) throw new Error('mention not highlighted');
   ok('упоминание @alice подсвечено у адресата');
-  await a.locator('.members').getByText('Боб').click();
+  await a.screenshot({ path: `${SHOTS}/03-bubbles.png` });
+  await a.getByRole('button', { name: 'Люди' }).first().click();
+  await a.locator('.people-drawer').getByText('Боб').click();
   await a.getByText('Модерация').click();
   await a.getByRole('button', { name: 'Заглушить 10 мин' }).click();
   await expectText(a, 'Заглушён на 10 мин');
@@ -155,13 +176,38 @@ try {
   await m.waitForURL(/\/app/);
   await m.goto(a.url());
   await expectText(m, 'Привет всем! Это первый тест');
-  await m.screenshot({ path: `${SHOTS}/04-mobile.png` });
-  await m.getByRole('button', { name: 'Каналы' }).click();
-  await m.getByRole('link', { name: 'общий' }).waitFor();
-  await m.screenshot({ path: `${SHOTS}/05-mobile-nav.png` });
+  await m.screenshot({ path: `${SHOTS}/06-mobile.png` });
+  await m.getByRole('button', { name: 'Комнаты' }).click();
+  await m.getByRole('link', { name: /общий/ }).waitFor();
+  await m.screenshot({ path: `${SHOTS}/07-mobile-rooms.png` });
   ok('мобильная раскладка: чат и отдельная панель каналов');
 
-  // 5. Неверный пароль
+  // 4b. Вход до подтверждения почты → снова экран кода
+  const c = await ctx();
+  await register(c, 'carol@example.com', 'carol', 'Кэрол', { verify: false });
+  await c.goto(`${BASE}/login`);
+  await c.getByLabel('Почта').fill('carol@example.com');
+  await c.getByLabel('Пароль').fill('correct-horse-1');
+  await c.getByRole('button', { name: 'Войти' }).click();
+  await expectText(c, 'Почта ещё не подтверждена');
+  await c.getByLabel('Код из письма').fill(await codeFor('carol@example.com'));
+  await c.getByRole('button', { name: 'Подтвердить' }).click();
+  await c.waitForURL(/\/app$/);
+  ok('вход без подтверждения: новый код отправлен, после ввода — вход');
+
+  // 4c. Сброс пароля по коду
+  const r = await ctx();
+  await r.goto(`${BASE}/login`);
+  await r.getByRole('button', { name: 'Забыли пароль?' }).click();
+  await r.getByLabel('Почта').fill('alice@example.com');
+  await r.getByRole('button', { name: 'Получить код' }).click();
+  await r.getByLabel('Код из письма').fill(await codeFor('alice@example.com', 'recovery'));
+  await r.getByLabel('Новый пароль').fill('new-garden-pass');
+  await r.getByRole('button', { name: 'Сохранить пароль' }).click();
+  await r.waitForURL(/\/app/);
+  ok('сброс пароля кодом из письма → новый пароль → вход');
+
+  // 5. Неверный (старый) пароль
   const w = await ctx();
   await w.goto(`${BASE}/login`);
   await w.getByLabel('Почта').fill('alice@example.com');
