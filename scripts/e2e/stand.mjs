@@ -27,7 +27,7 @@ export class Stand {
         join pg_attribute pa on pa.attrelid = c.confrelid and pa.attnum = c.confkey[1]
        where c.contype = 'f' and array_length(c.conkey, 1) = 1`);
     this.rels = fk.rows;
-    const f = await this.pool.query(`select p.proname, p.proretset, p.prorettype = 'void'::regtype as void from pg_proc p
+    const f = await this.pool.query(`select p.proname, p.proretset, p.provolatile in ('s', 'i') as readonly, p.prorettype = 'void'::regtype as void from pg_proc p
       join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public'`);
     this.funcs = new Map(f.rows.map((r) => [r.proname, r]));
   }
@@ -65,10 +65,10 @@ export class Stand {
     return null;
   }
 
-  async asUser(claims, fn) {
+  async asUser(claims, fn, readonly = false) {
     const c = await this.pool.connect();
     try {
-      await c.query('begin');
+      await c.query(readonly ? 'begin read only' : 'begin');
       await c.query(`set local role ${claims ? 'authenticated' : 'anon'}`);
       await c.query(`select set_config('request.jwt.claims', $1, true)`, [claims ? JSON.stringify(claims) : '']);
       const r = await fn(c);
@@ -172,6 +172,9 @@ export class Stand {
   }
 
   async rest(method, table, query, body, headers, claims) {
+    // как PostgREST: STABLE/IMMUTABLE функции и чтение таблиц — в транзакции только для чтения
+    const fnName = table.startsWith('rpc/') ? table.slice(4).replace(/[^\w]/g, '') : null;
+    const readonly = fnName ? Boolean(this.funcs.get(fnName)?.readonly) : method === 'GET' || method === 'HEAD';
     return this.asUser(claims, async (c) => {
       if (table.startsWith('rpc/')) {
         const fn = table.slice(4).replace(/[^\w]/g, '');
@@ -223,7 +226,7 @@ export class Stand {
       }
       if (method === 'DELETE') { await c.query(`delete from public.${t} t0 ${where}`, params); return [204, null]; }
       return [405, { message: 'stand: method not allowed' }];
-    });
+    }, readonly);
   }
 
   async handle(route) {

@@ -172,7 +172,8 @@ $$;
 create or replace function public.search_users(p_query text)
 returns table (id uuid, handle text, display_name text, avatar_path text, avatar_frame text, profile_emoji text,
                relation text, exact boolean, score real)
-language plpgsql stable security definer set search_path = public, extensions as $$
+-- VOLATILE, не STABLE: функция пишет счётчик лимита запросов, а Supabase выполняет STABLE-функции только на чтение
+language plpgsql volatile security definer set search_path = public, extensions as $$
 declare v_uid uuid := public._uid(); q text := lower(btrim(regexp_replace(coalesce(p_query, ''), '^@+', '')));
 begin
   if char_length(q) < 2 or char_length(q) > 40 then return; end if;
